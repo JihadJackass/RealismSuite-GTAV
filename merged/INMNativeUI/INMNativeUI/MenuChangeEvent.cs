@@ -1,0 +1,4 @@
+namespace INMNativeUI
+{
+	public delegate void MenuChangeEvent(UIMenu oldMenu, UIMenu newMenu, bool forward);
+}
