@@ -527,11 +527,11 @@ namespace BusinessV.World
 		{
 			if (interior)
 			{
-				Screen.ShowHelpTextThisFrame("~b~" + item.Name + " office~s~~n~~INPUT_CONTEXT~ Open management");
+				HelpBox.Show("~b~" + item.Name + " office~s~~n~~INPUT_CONTEXT~ Open management");
 			}
 			else if (!manager.IsOwned(item.Id))
 			{
-				Screen.ShowHelpTextThisFrame("~INPUT_CONTEXT~ Purchase " + item.Name + " for " + Money(item.PurchasePrice) + "~n~Expected daily income: " + Money(item.BaseDailyIncome));
+				HelpBox.Show("~INPUT_CONTEXT~ Purchase " + item.Name + " for " + Money(item.PurchasePrice) + "~n~Expected daily income: " + Money(item.BaseDailyIncome));
 			}
 			else
 			{
@@ -541,7 +541,7 @@ namespace BusinessV.World
 				StaffSummary summary;
 				int value = ExpectedNetIncome(item, income, out summary);
 				string text = ((upgradeLevel >= 3) ? "Max Level" : ("Upgrade Level " + upgradeLevel));
-				Screen.ShowHelpTextThisFrame("~b~" + item.Name + "~s~ - " + text + "~n~Expected daily income: ~g~" + Money(value) + "~s~~n~~INPUT_CONTEXT~ Manage business");
+				HelpBox.Show("~b~" + item.Name + "~s~ - " + text + "~n~Expected daily income: ~g~" + Money(value) + "~s~~n~~INPUT_CONTEXT~ Manage business");
 			}
 		}
 
@@ -640,7 +640,7 @@ namespace BusinessV.World
 				text += "~g~Max Level~s~~n~";
 			}
 			text += PageChoice(num4 + 1, label);
-			Screen.ShowHelpTextThisFrame(text);
+			HelpBox.Show(text);
 			buttons.Draw(false);
 		}
 
@@ -649,7 +649,7 @@ namespace BusinessV.World
 			int upgradeLevel = manager.GetUpgradeLevel(menuBusiness.Id);
 			string reason;
 			string label = ((selectedIndex == 0) ? "Business overview" : ((selectedIndex == 1) ? "Staff management" : ((selectedIndex == 2) ? "Marketing" : ((selectedIndex != 3) ? ((selectedIndex == 4) ? "Financial performance" : ((selectedIndex != 5) ? "Close" : (valuation.CanSell(menuBusiness, out reason) ? ("Sell business - " + Money(valuation.GetQuote(menuBusiness).ResalePrice)) : "Sell business - Locked"))) : ((upgradeLevel >= 3) ? "Upgrades - Max Level" : "Upgrade business")))));
-			Screen.ShowHelpTextThisFrame(Header(menuBusiness.Name) + "~n~Office management~n~" + PageChoice(7, label));
+			HelpBox.Show(Header(menuBusiness.Name) + "~n~Office management~n~" + PageChoice(7, label));
 			buttons.Draw(false);
 		}
 
@@ -663,7 +663,7 @@ namespace BusinessV.World
 			BusinessValueQuote quote = valuation.GetQuote(menuBusiness);
 			ReputationSummary summary2 = reputation.GetSummary(menuBusiness);
 			string text = ((activeCampaign == null) ? "None" : (BusinessMarketingPolicy.Name(activeCampaign.Tier) + " +" + Percent(activeCampaign.EffectBasisPoints) + " | " + activeCampaign.RemainingPayouts + " days"));
-			Screen.ShowHelpTextThisFrame(Header(menuBusiness.Name) + "~n~Business overview~n~Level " + upgradeLevel + " | Expected net " + Money(value) + "~n~Satisfaction " + summary2.CustomerSatisfaction + " | Reputation " + summary2.Reputation + " | Revenue " + SignedPercent(summary2.RevenueBasisPoints) + "~n~Staff " + summary.Employees + " employees | " + summary.Managers + " managers~n~Marketing " + text + "~n~Value " + Money(quote.CurrentValue) + " | Resale P/L " + SignedMoney(quote.EstimatedProfitLoss) + "~n~" + PageChoice(1, "Back"));
+			HelpBox.Show(Header(menuBusiness.Name) + "~n~Business overview~n~Level " + upgradeLevel + " | Expected net " + Money(value) + "~n~Satisfaction " + summary2.CustomerSatisfaction + " | Reputation " + summary2.Reputation + " | Revenue " + SignedPercent(summary2.RevenueBasisPoints) + "~n~Staff " + summary.Employees + " employees | " + summary.Managers + " managers~n~Marketing " + text + "~n~Value " + Money(quote.CurrentValue) + " | Resale P/L " + SignedMoney(quote.EstimatedProfitLoss) + "~n~" + PageChoice(1, "Back"));
 			buttons.Draw(false);
 		}
 
@@ -678,7 +678,7 @@ namespace BusinessV.World
 			int basisPoints = activeCampaign?.EffectBasisPoints ?? 0;
 			BusinessValueQuote quote = valuation.GetQuote(menuBusiness);
 			ReputationSummary summary2 = reputation.GetSummary(menuBusiness);
-			Screen.ShowHelpTextThisFrame(Header(menuBusiness.Name) + "~n~Financial performance~n~Base " + Money(menuBusiness.BaseDailyIncome) + " | Level income " + Money(dailyIncome) + "~n~Empire +" + num + "% | Marketing +" + Percent(basisPoints) + " | Staff +" + Percent(summary.RevenueBonusBasisPoints) + "~n~Payroll " + Money(summary.TotalSalaries) + " | Customer effect " + SignedPercent(summary2.RevenueBasisPoints) + " | Expected net " + Money(value) + "~n~Value " + Money(quote.CurrentValue) + " | Offer " + Money(quote.ResalePrice) + " | P/L " + SignedMoney(quote.EstimatedProfitLoss) + "~n~Recent net avg " + Money(quote.RecentAverageIncome) + " | Variation +/-" + settings.IncomeVariationPercent + "%~n~" + PageChoice(1, "Back"));
+			HelpBox.Show(Header(menuBusiness.Name) + "~n~Financial performance~n~Base " + Money(menuBusiness.BaseDailyIncome) + " | Level income " + Money(dailyIncome) + "~n~Empire +" + num + "% | Marketing +" + Percent(basisPoints) + " | Staff +" + Percent(summary.RevenueBonusBasisPoints) + "~n~Payroll " + Money(summary.TotalSalaries) + " | Customer effect " + SignedPercent(summary2.RevenueBasisPoints) + " | Expected net " + Money(value) + "~n~Value " + Money(quote.CurrentValue) + " | Offer " + Money(quote.ResalePrice) + " | P/L " + SignedMoney(quote.EstimatedProfitLoss) + "~n~Recent net avg " + Money(quote.RecentAverageIncome) + " | Variation +/-" + settings.IncomeVariationPercent + "%~n~" + PageChoice(1, "Back"));
 			buttons.Draw(false);
 		}
 
@@ -691,7 +691,7 @@ namespace BusinessV.World
 			int value2 = BusinessStaffPolicy.Salary(menuBusiness, BusinessStaffRole.Employee);
 			int value3 = BusinessStaffPolicy.Salary(menuBusiness, BusinessStaffRole.Manager);
 			string label = ((selectedIndex == 0) ? ("Hire employee - " + Money(value2) + "/day") : ((selectedIndex == 1) ? ("Hire manager - " + Money(value3) + "/day") : ((selectedIndex == 2) ? "Fire employee" : ((selectedIndex == 3) ? "Fire manager" : "Back"))));
-			Screen.ShowHelpTextThisFrame(Header(menuBusiness.Name) + "~n~Employees " + summary.Employees + " | Managers " + summary.Managers + "~n~Payroll " + Money(summary.TotalSalaries) + " | Net " + Money(value) + "~n~Revenue +" + Percent(summary.RevenueBonusBasisPoints) + " | Protection " + Percent(summary.EventProtectionBasisPoints) + "~n~" + PageChoice(5, label));
+			HelpBox.Show(Header(menuBusiness.Name) + "~n~Employees " + summary.Employees + " | Managers " + summary.Managers + "~n~Payroll " + Money(summary.TotalSalaries) + " | Net " + Money(value) + "~n~Revenue +" + Percent(summary.RevenueBonusBasisPoints) + " | Protection " + Percent(summary.EventProtectionBasisPoints) + "~n~" + PageChoice(5, label));
 			buttons.Draw(false);
 		}
 
@@ -701,26 +701,26 @@ namespace BusinessV.World
 			if (activeCampaign != null)
 			{
 				string text = (activeCampaign.WeakResult ? "Limited response" : "Active");
-				Screen.ShowHelpTextThisFrame(Header(menuBusiness.Name) + "~n~Marketing: " + BusinessMarketingPolicy.Name(activeCampaign.Tier) + " | " + text + "~n~Revenue +" + Percent(activeCampaign.EffectBasisPoints) + " | " + activeCampaign.RemainingPayouts + " payout days~n~Cost paid " + Money(activeCampaign.Cost) + "~n~" + PageChoice(1, "Back"));
+				HelpBox.Show(Header(menuBusiness.Name) + "~n~Marketing: " + BusinessMarketingPolicy.Name(activeCampaign.Tier) + " | " + text + "~n~Revenue +" + Percent(activeCampaign.EffectBasisPoints) + " | " + activeCampaign.RemainingPayouts + " payout days~n~Cost paid " + Money(activeCampaign.Cost) + "~n~" + PageChoice(1, "Back"));
 				buttons.Draw(false);
 				return;
 			}
 			MarketingCampaignTier marketingCampaignTier = ((selectedIndex == 0) ? MarketingCampaignTier.Local : ((selectedIndex == 1) ? MarketingCampaignTier.Regional : ((selectedIndex == 2) ? MarketingCampaignTier.Premium : ((MarketingCampaignTier)0))));
 			if (marketingCampaignTier == (MarketingCampaignTier)0)
 			{
-				Screen.ShowHelpTextThisFrame(Header(menuBusiness.Name) + "~n~No active marketing campaign.~n~" + PageChoice(4, "Back"));
+				HelpBox.Show(Header(menuBusiness.Name) + "~n~No active marketing campaign.~n~" + PageChoice(4, "Back"));
 				buttons.Draw(false);
 				return;
 			}
 			int basisPoints = BusinessMarketingPolicy.MinimumEffectBasisPoints(marketingCampaignTier, false);
 			int basisPoints2 = BusinessMarketingPolicy.MaximumEffectBasisPoints(marketingCampaignTier, false);
-			Screen.ShowHelpTextThisFrame(Header(menuBusiness.Name) + "~n~" + BusinessMarketingPolicy.Name(marketingCampaignTier) + " campaign | " + Money(BusinessMarketingPolicy.Cost(menuBusiness.PurchasePrice, marketingCampaignTier)) + "~n~Duration " + BusinessMarketingPolicy.Duration(marketingCampaignTier) + " payout days~n~Typical revenue +" + Percent(basisPoints) + "-" + Percent(basisPoints2) + " | Weak chance " + 20 + "%~n~" + PageChoice(4, "Start campaign"));
+			HelpBox.Show(Header(menuBusiness.Name) + "~n~" + BusinessMarketingPolicy.Name(marketingCampaignTier) + " campaign | " + Money(BusinessMarketingPolicy.Cost(menuBusiness.PurchasePrice, marketingCampaignTier)) + "~n~Duration " + BusinessMarketingPolicy.Duration(marketingCampaignTier) + " payout days~n~Typical revenue +" + Percent(basisPoints) + "-" + Percent(basisPoints2) + " | Weak chance " + 20 + "%~n~" + PageChoice(4, "Start campaign"));
 			buttons.Draw(false);
 		}
 
 		private void ShowConfirmation(string title, string detail)
 		{
-			Screen.ShowHelpTextThisFrame("~b~BUSINESSV~s~~n~" + title + "~n~" + detail + "~n~" + Choice(0, "Yes") + "     " + Choice(1, "No"));
+			HelpBox.Show("~b~BUSINESSV~s~~n~" + title + "~n~" + detail + "~n~" + Choice(0, "Yes") + "     " + Choice(1, "No"));
 			buttons.Draw(true);
 		}
 

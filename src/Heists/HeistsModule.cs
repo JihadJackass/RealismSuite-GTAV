@@ -125,6 +125,7 @@ namespace Heists
                 try { RestoreFactory("scripts stopped"); } catch { }
                 try { if (factoryBlip != null && factoryBlip.Exists()) factoryBlip.Delete(); } catch { }
                 if (run != null) EndRun("scripts stopped", false, true);
+                Kit.RetireAllNow();
             };
         }
 
@@ -138,6 +139,7 @@ namespace Heists
             if (playSeconds - lastPlaySave >= 120) { lastPlaySave = playSeconds; Save(); }   // cooldowns count play time, so keep it saved
             if (Game.GameTime > upkeepAt) { upkeepAt = Game.GameTime + 15000; try { CrewRoster.Upkeep(playSeconds); } catch (Exception ex) { Log("Crew upkeep: " + ex.Message); } }
 
+            Kit.Upkeep();
             if (Results.Draw()) return;
             Hud.DrawShard();
             KeepContact();
@@ -382,6 +384,7 @@ namespace Heists
         static readonly string[] FactoryIpls = { "id2_14_pre_no_int", "id2_14_during1", "id2_14_during2", "id2_14_during_door", "id2_14_on_fire", "id2_14_post_no_int" };
         readonly Dictionary<string, bool> factoryWas = new Dictionary<string, bool>();
         bool factoryOpen, openInterior = true, useDoorIpl = true;
+        bool cooldowns;   // off while the heists are being tested: Lester always has the job ready
         int insideLogAt;
 
         void LoadSettings()
@@ -394,6 +397,7 @@ namespace Heists
                 ScriptSettings s = ScriptSettings.Load(ini);
                 openInterior = s.GetValue("Factory", "OpenInterior", true);
                 useDoorIpl = s.GetValue("Factory", "UseDoorIpl", true);
+                cooldowns = s.GetValue("Jobs", "Cooldowns", false);
             }
             catch (Exception ex) { Log("Settings: " + ex.Message); }
         }
@@ -510,7 +514,7 @@ namespace Heists
                 if (run.Job == j) { label = "CALL IT OFF"; return Act.CallOff; }
                 label = "FINISH THE CURRENT JOB FIRST"; return Act.None;
             }
-            if (s.Step == 0 && playSeconds < s.ReadyAt)
+            if (cooldowns && s.Step == 0 && playSeconds < s.ReadyAt)
             {
                 long mins = (s.ReadyAt - playSeconds + 59) / 60;
                 label = "LESTER NEEDS " + mins + " MIN"; return Act.Wait;

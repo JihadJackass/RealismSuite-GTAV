@@ -440,7 +440,7 @@ namespace Heists
         int alarmAt = -1, escalateAt = -1, openStart, lastCrowd, nextRunner, boardedAt = -1, lastHurt, lastTick;
         readonly System.Collections.Generic.Dictionary<int, int> handsUp = new System.Collections.Generic.Dictionary<int, int>();
         readonly System.Collections.Generic.HashSet<string> checkedSpots = new System.Collections.Generic.HashSet<string>();
-        bool doorKnown, alarm, heldUp, blipOnCar, people, haveWait, pickup, vaultOpen;
+        bool doorKnown, alarm, heldUp, blipOnCar, people, haveWait, pickup, vaultOpen, handover;
         float doorFrom, openZ;
         string lastObjective = "";
         readonly FleecaDrill drill = new FleecaDrill();
@@ -707,6 +707,13 @@ namespace Heists
                 }
 
                 case P.Drop:
+                    // at the drop: the Kuruma stays with Lester's people, so you leave it
+                    if (handover)
+                    {
+                        if (CarOk && me.IsInVehicle(car)) { Say("Leave the ~b~Kuruma~w~. Lester's people will get rid of it."); break; }
+                        if (!CarOk || me.Position.DistanceTo(car.Position) > 5f) { squad.Dismiss(); return StepResult.Done; }
+                        break;
+                    }
                     if (Game.Player.WantedLevel > 0) { phase = P.Escape; squad.NewOrders(); Kit.Remove(blip); blip = null; break; }
                     if (!CrewDriving) squad.CheckLeftBehind(me);
                     string where = b.City ? "~y~Lester's factory~w~" : "the ~y~drop-off~w~";
@@ -714,14 +721,14 @@ namespace Heists
                     {
                         squad.DriveTo(car, drop, 20f, false);
                         Say("~b~" + squad.DriverName + "~w~ is taking you to " + where + ".");
-                        if (car.Position.DistanceTo(drop) < 10f) { squad.Park(car); squad.Dismiss(); return StepResult.Done; }
+                        if (car.Position.DistanceTo(drop) < 10f) { squad.Park(car); handover = true; }
                     }
                     else
                     {
                         Say(squad.CrewDrives && !squad.DriverAlive ? "Your driver is down. Get the money to " + where + " yourself." : "Take the money to " + where + ".");
                         if (me.Position.DistanceTo(drop) < 30f)
                             World.DrawMarker(MarkerType.VerticalCylinder, drop - new Vector3(0, 0, 1f), Vector3.Zero, Vector3.Zero, new Vector3(4f, 4f, 1.2f), System.Drawing.Color.FromArgb(120, 240, 200, 80));
-                        if (me.Position.DistanceTo(drop) < 4f && (!me.IsInVehicle() || me.CurrentVehicle.Speed < 2f)) { squad.Dismiss(); return StepResult.Done; }
+                        if (me.Position.DistanceTo(drop) < 4f && (!me.IsInVehicle() || me.CurrentVehicle.Speed < 2f)) handover = true;
                     }
                     break;
             }

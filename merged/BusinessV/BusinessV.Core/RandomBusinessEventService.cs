@@ -629,7 +629,7 @@ namespace BusinessV.Core
 			BusinessDefinition businessDefinition = definitions.FirstOrDefault((BusinessDefinition item) => string.Equals(item.Id, state.BusinessId, StringComparison.OrdinalIgnoreCase));
 			string text = DecisionOutcome(state.YesCost, state.YesEffectPercent, state.YesPayouts);
 			string text2 = DecisionOutcome(state.NoCost, state.NoEffectPercent, state.NoPayouts);
-			Screen.ShowHelpTextThisFrame("~b~Business decision: " + DisplayName(state.EventType) + "~s~~n~" + (businessDefinition?.Name ?? state.BusinessId) + "~n~Yes: " + text + "~n~No: " + text2 + "~n~" + (decisionYes ? "~y~> YES <~s~     NO" : "YES     ~y~> NO <~s~"));
+			HelpBox.Show("~b~Business decision: " + DisplayName(state.EventType) + "~s~~n~" + (businessDefinition?.Name ?? state.BusinessId) + "~n~Yes: " + text + "~n~No: " + text2 + "~n~" + (decisionYes ? "~y~> YES <~s~     NO" : "YES     ~y~> NO <~s~"));
 			buttons.Draw(true);
 		}
 

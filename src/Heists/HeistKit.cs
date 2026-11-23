@@ -118,15 +118,58 @@ namespace Heists
                 try
                 {
                     if (e == null || !e.Exists()) continue;
-                    // never delete a car with you in it: hand it back to the game instead
+                    // job vehicles aren't yours to keep: retired (locked, then removed out of sight), never handed back
                     Vehicle v = e as Vehicle;
-                    Ped me = Game.Player.Character;
-                    if (v != null && me != null && me.IsInVehicle(v)) { v.MarkAsNoLongerNeeded(); continue; }
+                    if (v != null) { Retire(v); continue; }
                     e.Delete();
                 }
                 catch { }
             }
             entities.Clear();
+        }
+
+        // ---- retired job vehicles: you're made to get out, the doors lock for good, and the car is removed
+        // once you're far enough away or it's off screen (so it doesn't vanish in front of you)
+        static readonly List<Vehicle> retired = new List<Vehicle>();
+
+        static void Retire(Vehicle v)
+        {
+            Ped me = Game.Player.Character;
+            if (me != null && me.IsInVehicle(v)) Function.Call(Hash.TASK_LEAVE_VEHICLE, me, v, 0);
+            if (!retired.Contains(v)) retired.Add(v);
+        }
+
+        // called every frame from the module
+        public static void Upkeep()
+        {
+            if (retired.Count == 0) return;
+            Ped me = Game.Player.Character;
+            if (me == null || !me.Exists()) return;
+            for (int i = retired.Count - 1; i >= 0; i--)
+            {
+                Vehicle v = retired[i];
+                try
+                {
+                    if (v == null || !v.Exists()) { retired.RemoveAt(i); continue; }
+                    if (me.IsInVehicle(v)) { if (!me.IsDead) Function.Call(Hash.TASK_LEAVE_VEHICLE, me, v, 0); continue; }
+                    Function.Call(Hash.SET_VEHICLE_DOORS_LOCKED_FOR_ALL_PLAYERS, v, true);
+                    float d = me.Position.DistanceTo(v.Position);
+                    if (d > 80f || d > 15f && !Function.Call<bool>(Hash.IS_ENTITY_ON_SCREEN, v))
+                    {
+                        foreach (Ped p in v.Occupants) if (p != null && p.Exists() && p != me) p.Delete();
+                        v.Delete();
+                        retired.RemoveAt(i);
+                    }
+                }
+                catch { retired.RemoveAt(i); }
+            }
+        }
+
+        // everything still waiting to be removed goes now (the scripts are stopping)
+        public static void RetireAllNow()
+        {
+            foreach (Vehicle v in retired) { try { if (v != null && v.Exists()) v.MarkAsNoLongerNeeded(); } catch { } }
+            retired.Clear();
         }
 
         public static Model Load(string name)

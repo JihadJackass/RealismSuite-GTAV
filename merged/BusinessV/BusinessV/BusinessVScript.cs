@@ -7,6 +7,7 @@ using BusinessV.Infrastructure;
 using BusinessV.Models;
 using BusinessV.World;
 using GTA;
+using GTA.Native;
 using GTA.UI;
 
 namespace BusinessV
@@ -126,6 +127,7 @@ namespace BusinessV
 					interaction.Tick();
 				}
 				input.Tick();
+				MouseInput();
 				blips.Tick();
 				income.Tick();
 			}
@@ -157,6 +159,35 @@ namespace BusinessV
 			{
 				input.KeyUp(e.KeyCode);
 			}
+		}
+
+		// RealismSuite: the menus work with the mouse. While a menu or a decision is on screen: the cursor shows,
+		// the camera and weapons are held, the arrows change the option, a click on the option chooses it,
+		// right-click goes back, the wheel scrolls. Yes/No decisions are two buttons.
+		private void MouseInput()
+		{
+			int frame = Game.FrameCount;
+			bool menu = HelpBox.ChoiceFrame == frame, decision = HelpBox.DecisionFrame == frame;
+			if (!menu && !decision || !Function.Call<bool>(Hash.IS_USING_KEYBOARD_AND_MOUSE, 2)) return;
+			Function.Call(Hash.SET_MOUSE_CURSOR_THIS_FRAME);
+			foreach (int c in new[] { 1, 2, 14, 15, 16, 17, 24, 25, 37, 68, 69, 70, 91, 92, 140, 141, 142, 257, 263, 264 })
+				Function.Call(Hash.DISABLE_CONTROL_ACTION, 0, c, true);
+			var m = global::RealismSuite.UiMouse.Pos;
+			bool click = global::RealismSuite.UiMouse.Click;
+			int wheel = global::RealismSuite.UiMouse.Wheel;
+			if (decision)
+			{
+				if (click && HelpBox.YesButton.Contains(m)) { if (!HelpBox.YesSelected) HandleInput(BusinessInputAction.Right); HandleInput(BusinessInputAction.Accept); }
+				else if (click && HelpBox.NoButton.Contains(m)) { if (HelpBox.YesSelected) HandleInput(BusinessInputAction.Right); HandleInput(BusinessInputAction.Accept); }
+				else if (wheel != 0) HandleInput(BusinessInputAction.Right);
+				return;
+			}
+			if (click && HelpBox.LeftArrow.Contains(m)) HandleInput(BusinessInputAction.Left);
+			else if (click && HelpBox.RightArrow.Contains(m)) HandleInput(BusinessInputAction.Right);
+			else if (click && HelpBox.Bar.Contains(m)) HandleInput(BusinessInputAction.Accept);
+			else if (global::RealismSuite.UiMouse.RightClick) HandleInput(BusinessInputAction.Cancel);
+			else if (wheel < 0) HandleInput(BusinessInputAction.Left);
+			else if (wheel > 0) HandleInput(BusinessInputAction.Right);
 		}
 
 		private void HandleInput(BusinessInputAction action)
