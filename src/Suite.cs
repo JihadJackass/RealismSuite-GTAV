@@ -90,7 +90,23 @@ namespace RealismSuite
             Add("PoliceComputer", () => new PoliceComputer.PoliceComputerScript());
             Add("Police", () => new Police.PoliceScript());
             Add("Trunk", () => new Police.Trunk());
+            Add("Accessories", () => new RealismSuite.AccessoriesModule());
+            Add("Bodies", () => new Bodies.BodiesModule());
+            Add("Gangs", () => new Gangs.GangModule());
             Add("Heists", () => new Heists.HeistsModule());
+            Add("FogKeeper", () => new RealismSuite.FogKeeperModule());
+            Add("Blackjack", () => new Gambling.BlackjackModule());
+            Add("Slots", () => new Gambling.SlotsModule());
+            Add("Holdem", () => new Gambling.HoldemModule());
+            Add("Roulette", () => new Gambling.RouletteModule());
+            Add("ThreeCard", () => new Gambling.ThreeCardModule());
+            Add("LuckyWheel", () => new Gambling.LuckyWheelModule());
+            Add("InsideTrack", () => new Gambling.InsideTrackModule());
+            Add("Diamond", () => new Gambling.DiamondModule());
+            Add("FightPit", () => new Gambling.FightPitModule());
+            Add("RussianRoulette", () => new Gambling.RussianRouletteModule());
+            Add("Den", () => new Gambling.DenModule());
+            Add("Arena", () => new Arena.ArenaModule());
 
             // stagger first runs so modules on the same interval land on different frames
             int t = Game.GameTime;
@@ -100,7 +116,7 @@ namespace RealismSuite
             Tick += OnTick;
             KeyDown += (s, e) => { foreach (Module m in modules) Guard(m, "key", () => m.RaiseKeyDown(e)); };
             KeyUp += (s, e) => { foreach (Module m in modules) Guard(m, "key", () => m.RaiseKeyUp(e)); };
-            Aborted += (s, e) => { foreach (Module m in modules) { try { m.RaiseAborted(); } catch { } } };
+            Aborted += (s, e) => { foreach (Module m in modules) { try { m.RaiseAborted(); } catch { } } try { Help.Hide(); } catch { } };
             Log("Loaded " + modules.Count + " modules: " + string.Join(", ", modules.ConvertAll(m => m.Name)));
         }
 
@@ -119,8 +135,11 @@ namespace RealismSuite
             {
                 if (now < m.NextRun || now < m.PausedUntil) continue;
                 m.NextRun = now + Math.Max(0, m.Interval);
+                Help.Hold = Math.Max(0, m.Interval);
                 Guard(m, "tick", m.RaiseTick);
             }
+            Help.Hold = 0;
+            try { Help.EndFrame(); } catch { }
         }
 
         void Guard(Module m, string what, Action a)

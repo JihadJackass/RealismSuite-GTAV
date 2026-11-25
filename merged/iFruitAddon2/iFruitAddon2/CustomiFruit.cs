@@ -48,7 +48,7 @@ namespace iFruitAddon2
 			}
 		}
 
-		public int Handle => PhoneScript.GetCurrentScaleform().Handle;
+		public int Handle => PhoneScript.CurrentHandle();
 
 		public CustomiFruit()
 			: this(new iFruitContactCollection())
@@ -73,12 +73,12 @@ namespace iFruitAddon2
 
 		public void SetSoftKeyIcon(int buttonID, SoftKeyIcon icon)
 		{
-			PhoneScript.GetCurrentScaleform().CallFunction("SET_SOFT_KEYS", buttonID, true, (int)icon);
+			PhoneScript.Call("SET_SOFT_KEYS", buttonID, true, (int)icon);
 		}
 
 		public void SetSoftKeyColor(int buttonID, Color color)
 		{
-			PhoneScript.GetCurrentScaleform().CallFunction("SET_SOFT_KEYS_COLOUR", buttonID, (int)color.R, (int)color.G, (int)color.B);
+			PhoneScript.Call("SET_SOFT_KEYS_COLOUR", buttonID, (int)color.R, (int)color.G, (int)color.B);
 		}
 
 		internal void SetWallpaperTXD(string textureDict)
@@ -114,6 +114,12 @@ namespace iFruitAddon2
 
 		public void Update()
 		{
+			// RealismSuite: during story missions the phone belongs to the mission (photos to send, calls to make):
+			// added contacts stay out of it, and nothing here touches the phone's screen
+			if (Game.IsMissionActive && !global::RealismSuite.Missions.CustomHeist)
+			{
+				return;
+			}
 			bool flag = Function.Call<int>(Hash.GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH, PhoneScript.CellphoneHandHash) > 0;
 			if (flag)
 			{
@@ -160,7 +166,12 @@ namespace iFruitAddon2
 				Close();
 				_timerClose = -1;
 			}
-			_contacts.Update(flag ? Handle : 0, flag);
+			int handle = flag ? Handle : 0;
+			if (flag && handle == 0)
+			{
+				return;   // the phone is coming up and its screen isn't loaded yet: next frame
+			}
+			_contacts.Update(handle, flag);
 		}
 
 		public void Close(int timer = 0)

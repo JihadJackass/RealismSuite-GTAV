@@ -1472,6 +1472,7 @@ namespace SPAII
 						return true;
 					}
 					MansionTerrain.BeginMapActivation();
+					global::RealismSuite.FogKeeper.BeforeMapSwitch("Online map");   // the switch clears explored areas
 					if (ConfigHelper.OnlineMapAdditive)
 					{
 						Logger.Log("online map: EXECUTE GROUP_MAP (additive)");
@@ -1484,6 +1485,7 @@ namespace SPAII
 						Function.CallLongBlockingFunc(INMNative.ON_ENTER_MP);
 						Logger.Log("online map: ON_ENTER_MP done");
 					}
+					global::RealismSuite.FogKeeper.AfterMapSwitch("Online map");
 					MansionTerrain.CompleteMapActivation();
 					mpLoadedAdditive = ConfigHelper.OnlineMapAdditive;
 					mpMapActive = true;
@@ -1495,6 +1497,7 @@ namespace SPAII
 				{
 					Mansions.UnloadAllMansions(true);
 					MansionTerrain.PrepareMapDeactivation();
+					global::RealismSuite.FogKeeper.BeforeMapSwitch("story map");
 					if (mpLoadedAdditive)
 					{
 						Logger.Log("online map: REVERT GROUP_MAP (additive)");
@@ -1507,6 +1510,7 @@ namespace SPAII
 						Function.CallLongBlockingFunc(Hash.ON_ENTER_SP);
 						Logger.Log("online map: ON_ENTER_SP done");
 					}
+					global::RealismSuite.FogKeeper.AfterMapSwitch("story map");
 					MansionTerrain.MapDeactivationNativeReturned();
 					MansionTerrain.CompleteMapDeactivation();
 					mpMapActive = false;

@@ -3518,6 +3518,18 @@ public static class WebVehicleShops
 		OpenFixWindow(num - price, _cfg.SuccessPage);
 		MaintainFixWindow();
 		string info;
+		// RealismSuite: if you own SPA II garages with room, ask where the car should go
+		switch (OfferSpaGarages(b, value, price, num))
+		{
+		case 1:
+			return;
+		case -1:
+			OpenFixWindow(num, _cfg.FailPage);
+			MaintainFixWindow();
+			GoToPage(b, _cfg.FailPage);
+			Notification.Show("Purchase cancelled. No money was charged.");
+			return;
+		}
 		if (FitsNativeGarage(value) && TryStoreInNativeGarage(value, _selectedColour, out info))
 		{
 			_fixUntil = Game.GameTime + 2500;
@@ -3655,6 +3667,134 @@ public static class WebVehicleShops
 		vehicle.PlaceOnGround();
 		vehicle.IsPersistent = true;
 		ApplySelection(vehicle, _selectedColour);
+	}
+
+	// RealismSuite delivery choice. Returns 0 = carry on with the story garages, 1 = delivered to an SPA II garage, -1 = cancelled.
+	private static int _lastSpaChoice = -1;
+	private static string _lastSpaLabel;
+
+	private static int OfferSpaGarages(int b, int hash, int price, int moneyBefore)
+	{
+		if (Function.Call<bool>(Hash.IS_THIS_MODEL_A_HELI, hash) || Function.Call<bool>(Hash.IS_THIS_MODEL_A_PLANE, hash) || Function.Call<bool>(Hash.IS_THIS_MODEL_A_BOAT, hash) || Function.Call<bool>(Hash.IS_THIS_MODEL_A_TRAIN, hash))
+		{
+			return 0;
+		}
+		List<SPAII.GarageDestination> spa = SPAII.ShopDelivery.Destinations();
+		if (spa.Count == 0)
+		{
+			return 0;
+		}
+		List<RealismSuite.DeliveryOption> options = new List<RealismSuite.DeliveryOption>();
+		options.Add(new RealismSuite.DeliveryOption { Title = CharName() + "'s story garages", Detail = StoryGarageDetail(hash) });
+		int preselect = 0;
+		for (int i = 0; i < spa.Count; i++)
+		{
+			options.Add(new RealismSuite.DeliveryOption { Title = spa[i].Label, Detail = "SPA II garage  |  " + spa[i].Free + " of " + spa[i].Capacity + " spaces free" });
+			if (spa[i].Label == _lastSpaLabel)
+			{
+				preselect = i + 1;
+			}
+		}
+		if (_lastSpaChoice == 0)
+		{
+			preselect = 0;
+		}
+		string name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, hash));
+		if (string.IsNullOrEmpty(name) || name == "NULL")
+		{
+			name = "Your new vehicle";
+		}
+		int pick = RealismSuite.DeliveryChooser.Choose(name, price, options, preselect, delegate
+		{
+			_fixUntil = Game.GameTime + 2500;
+			MaintainFixWindow();
+		});
+		if (pick < 0)
+		{
+			return -1;
+		}
+		_lastSpaChoice = pick;
+		if (pick == 0)
+		{
+			return 0;
+		}
+		SPAII.GarageDestination dest = spa[pick - 1];
+		_lastSpaLabel = dest.Label;
+		Model model = new Model(hash);
+		model.Request();
+		int t = Environment.TickCount;
+		while (!model.IsLoaded && Environment.TickCount - t < 3000)
+		{
+			_fixUntil = Game.GameTime + 2500;
+			MaintainFixWindow();
+			Script.Wait(0);
+		}
+		string error = "the model didn't load";
+		if (model.IsLoaded)
+		{
+			// made out of sight under the player for SPA II to read its colours and mods, then removed
+			Vector3 p = Game.Player.Character.Position;
+			Vehicle v = World.CreateVehicle(model, new Vector3(p.X, p.Y, p.Z - 40f), 0f);
+			model.MarkAsNoLongerNeeded();
+			if (v != null && v.Exists())
+			{
+				v.IsPositionFrozen = true;
+				v.IsCollisionEnabled = false;
+				v.IsVisible = false;
+				ApplySelection(v, _selectedColour);
+				bool ok = SPAII.ShopDelivery.Deliver(dest, v, out error);
+				v.Delete();
+				if (ok)
+				{
+					_fixUntil = Game.GameTime + 2500;
+					_reassertLeft = 6;
+					MaintainFixWindow();
+					GoToPage(b, _cfg.SuccessPage);
+					Notification.Show("~g~Delivered to your garage at " + dest.Label + ".");
+					return 1;
+				}
+			}
+		}
+		Notification.Show("~o~Couldn't deliver to " + dest.Label + " (" + error + "). Sending it to the story garages instead.");
+		return 0;
+	}
+
+	private static string CharName()
+	{
+		switch (CurrentCharSlot())
+		{
+		case 0:
+			return "Michael";
+		case 1:
+			return "Franklin";
+		case 2:
+			return "Trevor";
+		default:
+			return "Your";
+		}
+	}
+
+	private static string StoryGarageDetail(int hash)
+	{
+		if (OversizedModels.Contains(hash))
+		{
+			return "Too big for a garage: left outside your home";
+		}
+		int slot = CurrentCharSlot();
+		if (slot < 0 || _globalsUnavailable || !GarageStructValidated())
+		{
+			return "Home garage, or a garage you bought";
+		}
+		int id = FindFreeNativeGarage(slot);
+		if (id < 0)
+		{
+			return "All full: left outside your home";
+		}
+		if (id >= 21 && id <= 23)
+		{
+			return "Goes to your home garage";
+		}
+		return "Goes to a garage you bought (home garage is full)";
 	}
 
 	private static bool FitsNativeGarage(int hash)

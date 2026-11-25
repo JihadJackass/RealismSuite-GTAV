@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{10D99D2A-879B-4C6E-8A0E-80E9CDBDFD5C}</ProjectGuid>
+    <ProjectTypeGuids>{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <OutputType>Library</OutputType>
+    <LangVersion>6</LangVersion>
+    <AssemblyName>GTAO_DiamondCasino</AssemblyName>
+    <TargetFrameworkIdentifier>.NETFramework</TargetFrameworkIdentifier>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Platform)' == 'AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <OutputPath>bin\Debug\</OutputPath>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <OutputPath>bin\Release\</OutputPath>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ScriptHookVDotNet3">
+      <HintPath>/home/claude/realfuel/ref/ScriptHookVDotNet3.dll</HintPath>
+    </Reference>
+    <Reference Include="LemonUI.SHVDN3">
+      <HintPath>/home/claude/realfuel/ref/LemonUI.SHVDN3.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core">
+      <HintPath>/usr/lib/mono/4.5/System.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="System">
+      <HintPath>/usr/lib/mono/4.5/System.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Drawing">
+      <HintPath>/usr/lib/mono/4.5/System.Drawing.dll</HintPath>
+    </Reference>
+    <Reference Include="HKHModHelperNew">
+      <HintPath>/tmp/casino_in/GTAO Diamond Casino In SP/scripts/HKHModHelperNew.dll</HintPath>
+    </Reference>
+    <Reference Include="iFruitAddon2">
+      <HintPath>/tmp/casino_in/GTAO Diamond Casino In SP/scripts/iFruitAddon2.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.CSharp">
+      <HintPath>/usr/lib/mono/4.5/Microsoft.CSharp.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="GTAO_DiamondCasino.Games/CasinoGames_Slots.cs" />
+    <Compile Include="GTAO_DiamondCasino.Games/EightPlayerPoker.cs" />
+    <Compile Include="GTAO_DiamondCasino.Games/HorseBettingArea.cs" />
+    <Compile Include="GTAO_DiamondCasino.Menus/PurchasePenthouse.cs" />
+    <Compile Include="GTAO_DiamondCasino.Penthouse/EnterExitPenthouseFromTerrace.cs" />
+    <Compile Include="GTAO_DiamondCasino.Penthouse/PenthouseArtPropSpawning.cs" />
+    <Compile Include="GTAO_DiamondCasino.Penthouse/PenthouseEnterCutscene.cs" />
+    <Compile Include="GTAO_DiamondCasino.Penthouse/PenthouseGarage.cs" />
+    <Compile Include="GTAO_DiamondCasino.Penthouse/PenthouseInterior.cs" />
+    <Compile Include="GTAO_DiamondCasino.Penthouse/PenthouseJacuzzi.cs" />
+    <Compile Include="GTAO_DiamondCasino.Penthouse/PenthouseSeats.cs" />
+    <Compile Include="GTAO_DiamondCasino.PodiumVehicle/ChangePodiumVehicle.cs" />
+    <Compile Include="GTAO_DiamondCasino.PodiumVehicle/PodiumVehicleMenu.cs" />
+    <Compile Include="GTAO_DiamondCasino.Screens/HorseBettingScreens.cs" />
+    <Compile Include="GTAO_DiamondCasino.Screens/PenthouseScreen.cs" />
+    <Compile Include="GTAO_DiamondCasino/CasinoGames.cs" />
+    <Compile Include="GTAO_DiamondCasino/CasinoGames_Blackjack.cs" />
+    <Compile Include="GTAO_DiamondCasino/CasinoGames_Poker.cs" />
+    <Compile Include="GTAO_DiamondCasino/CasinoGames_Roulette.cs" />
+    <Compile Include="GTAO_DiamondCasino/CasinoPeds.cs" />
+    <Compile Include="GTAO_DiamondCasino/CasinoScreens.cs" />
+    <Compile Include="GTAO_DiamondCasino/Class1.cs" />
+    <Compile Include="GTAO_DiamondCasino/DealerTable.cs" />
+    <Compile Include="GTAO_DiamondCasino/DrinksMenu.cs" />
+    <Compile Include="GTAO_DiamondCasino/Elevators.cs" />
+    <Compile Include="GTAO_DiamondCasino/Elevators_Doors.cs" />
+    <Compile Include="GTAO_DiamondCasino/EnterExit.cs" />
+    <Compile Include="GTAO_DiamondCasino/EntityFlickerEffect.cs" />
+    <Compile Include="GTAO_DiamondCasino/GlobalHelper.cs" />
+    <Compile Include="GTAO_DiamondCasino/InitializeCasino.cs" />
+    <Compile Include="GTAO_DiamondCasino/InsideTrack.cs" />
+    <Compile Include="GTAO_DiamondCasino/ManageBlips.cs" />
+    <Compile Include="GTAO_DiamondCasino/ManageDuplicateTables.cs" />
+    <Compile Include="GTAO_DiamondCasino/ManageSlotMachines.cs" />
+    <Compile Include="GTAO_DiamondCasino/Memory.cs" />
+    <Compile Include="GTAO_DiamondCasino/PenthouseArtPlacement.cs" />
+    <Compile Include="GTAO_DiamondCasino/PenthouseExteriorPeds.cs" />
+    <Compile Include="GTAO_DiamondCasino/PenthouseParty.cs" />
+    <Compile Include="GTAO_DiamondCasino/PenthouseStuff.cs" />
+    <Compile Include="GTAO_DiamondCasino/PlayableOnlineCharacterIntergration.cs" />
+    <Compile Include="GTAO_DiamondCasino/PlayerCards.cs" />
+    <Compile Include="GTAO_DiamondCasino/PlayerChips.cs" />
+    <Compile Include="GTAO_DiamondCasino/PrizeWheelandCar.cs" />
+    <Compile Include="GTAO_DiamondCasino/PurchaseChips.cs" />
+    <Compile Include="GTAO_DiamondCasino/RaceArcade.cs" />
+    <Compile Include="GTAO_DiamondCasino/SlotsClass.cs" />
+    <Compile Include="GTAO_DiamondCasino/TableType.cs" />
+    <Compile Include="GTAO_DiamondCasino/Utils.cs" />
+    <Compile Include="GTAO_DiamondCasino/Valet.cs" />
+    <Compile Include="GTAO_DiamondCasino/WalkingPeds.cs" />
+    <Compile Include="GTAO_DiamondCasino/Zones.cs" />
+    <Compile Include="GTAO_DiamondCasino/_Debug.cs" />
+    <Compile Include="Properties/AssemblyInfo.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

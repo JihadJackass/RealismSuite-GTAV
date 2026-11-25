@@ -249,6 +249,20 @@ namespace RealFuel
         private readonly Dictionary<string, long> closedUntil = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         private int lastMarketRead;
         private float canLitres;
+        // the petrol in the jerry can you're carrying, for the trunk stash: a can put in a trunk keeps its petrol
+        internal static RealFuelScript Instance;
+        // for the interaction menu's Quick GPS
+        internal static List<Vector3> StationPositions()
+        {
+            var l = new List<Vector3>();
+            if (Instance != null) foreach (Station s in Instance.stations) l.Add(s.Pos);
+            return l;
+        }
+        internal static float CanLitres
+        {
+            get { return Instance != null ? Instance.canLitres : 0f; }
+            set { if (Instance != null) { Instance.canLitres = Math.Max(0f, Math.Min(value, Instance.cfg.JerryCanLitres)); Instance.dirty = true; } }
+        }
         private bool dirty;
         private int lastSave, lastAiCheck, nextStranded, lastPumpScan;
         private bool initialised;
@@ -284,6 +298,7 @@ namespace RealFuel
 
         public RealFuelScript()
         {
+            Instance = this;
             dir = Path.Combine(DataDirectory, "RealFuel");
             dataPath = Path.Combine(dir, "fuel.dat");
             logPath = Path.Combine(DataDirectory, "RealFuel.log");
@@ -419,13 +434,13 @@ namespace RealFuel
             {
                 if (v.IsEngineRunning || driving) Function.Call(Hash.SET_VEHICLE_ENGINE_ON, v, false, true, false);
                 if (driving && Game.IsControlPressed(GTA.Control.VehicleAccelerate))
-                    Screen.ShowHelpTextThisFrame("~r~Out of fuel.~s~ Find a gas station or use a jerry can.");
+                    global::RealismSuite.Help.Show("~r~Out of fuel.~s~ Find a gas station or use a jerry can.");
             }
 
             if (!driving || v != cur) return;
 
             if (!v.IsEngineRunning && t.Litres > 0.001f && Game.IsControlPressed(GTA.Control.VehicleAccelerate) && !filling)
-                Screen.ShowHelpTextThisFrame("The engine is off. Press " + KeyLabel(cfg.EngineKey) + " to start it.");
+                global::RealismSuite.Help.Show("The engine is off. Press " + KeyLabel(cfg.EngineKey) + " to start it.");
 
             // reserve: chime, route, sputter
             if (frac <= cfg.ReserveFraction && t.Litres > 0f)
@@ -498,6 +513,13 @@ namespace RealFuel
             float driveL = l100 / 100f * distKm * cfg.DistanceScale * speedFactor * rpmFactor * throttleFactor;
             float idleL = cfg.IdleLitresPerHour * (l100 / 9f) * dt / 3600f;
             return (driveL + idleL) * economy * cfg.ConsumptionMultiplier;
+        }
+
+        // the interaction menu's Engine row goes through here so the held-off state and the empty tank are respected
+        internal static void ToggleEngineFor(Vehicle v)
+        {
+            if (Instance != null) Instance.ToggleEngine(v);
+            else Function.Call(Hash.SET_VEHICLE_ENGINE_ON, v, !v.IsEngineRunning, false, true);
         }
 
         private void ToggleEngine(Vehicle v)
@@ -588,7 +610,7 @@ namespace RealFuel
             // ---------------- at a pump on foot
             if (nearPump != 0 && nearPumpPos.DistanceTo(me.Position) <= cfg.PumpReach && IsClosed(nearStation))
             {
-                Screen.ShowHelpTextThisFrame("This station is closed after the explosion. Try another one.");
+                global::RealismSuite.Help.Show("This station is closed after the explosion. Try another one.");
                 return;
             }
             if (nearPump != 0 && nearPumpPos.DistanceTo(me.Position) <= cfg.PumpReach)
@@ -598,10 +620,10 @@ namespace RealFuel
                 {
                     if (filling && fillVeh == null) { ContinueFillingCan(me, dt, interact); return; }
                     if (canLitres >= cfg.JerryCanLitres - 0.05f)
-                        Screen.ShowHelpTextThisFrame("Your jerry can is full.");
+                        global::RealismSuite.Help.Show("Your jerry can is full.");
                     else
                     {
-                        Screen.ShowHelpTextThisFrame(string.Format("Press ~INPUT_CONTEXT~ to fill the jerry can (~g~${0:0.00}~s~/L). It holds {1:0.0} of {2:0} L.", price, canLitres, cfg.JerryCanLitres));
+                        global::RealismSuite.Help.Show(string.Format("Press ~INPUT_CONTEXT~ to fill the jerry can (~g~${0:0.00}~s~/L). It holds {1:0.0} of {2:0} L.", price, canLitres, cfg.JerryCanLitres));
                         if (interact) StartFillingCan(me);
                     }
                     return;
@@ -610,7 +632,7 @@ namespace RealFuel
                 string canLine = "";
                 if (cfg.JerryCan && !me.Weapons.HasWeapon(WeaponHash.PetrolCan))
                     canLine = string.Format("~n~Press ~a~ to buy a jerry can (~g~${0}~s~).", cfg.JerryCanPrice);
-                Screen.ShowHelpTextThisFrame("Press ~INPUT_CONTEXT~ to take the nozzle." + (canLine.Length > 0 ? canLine.Replace("~a~", KeyLabel(cfg.SecondaryKey)) : ""));
+                global::RealismSuite.Help.Show("Press ~INPUT_CONTEXT~ to take the nozzle." + (canLine.Length > 0 ? canLine.Replace("~a~", KeyLabel(cfg.SecondaryKey)) : ""));
                 if (interact) TakeNozzle(me);
                 else if (secondary && canLine.Length > 0) BuyCan(me);
             }
@@ -669,7 +691,7 @@ namespace RealFuel
                 Grade g = EffectiveGrade(target, chosenGrade);
                 if (target.IsEngineRunning)
                 {
-                    Screen.ShowHelpTextThisFrame("The engine is running. Press ~INPUT_CONTEXT~ to reach in and switch it off.");
+                    global::RealismSuite.Help.Show("The engine is running. Press ~INPUT_CONTEXT~ to reach in and switch it off.");
                     if (interact)
                     {
                         Function.Call(Hash.SET_VEHICLE_ENGINE_ON, target, false, false, true);
@@ -679,9 +701,9 @@ namespace RealFuel
                 }
                 TankRecord t = GetTank(target);
                 float cap = Capacity(target);
-                if (t.Litres >= cap - 0.1f) { Screen.ShowHelpTextThisFrame("The tank is full."); return; }
+                if (t.Litres >= cap - 0.1f) { global::RealismSuite.Help.Show("The tank is full."); return; }
                 string gradeLine = g == Grade.Diesel ? "~b~Diesel~s~" : string.Format("Grade: ~b~{0}~s~ (~a~ to change)", g).Replace("~a~", KeyLabel(cfg.SecondaryKey));
-                Screen.ShowHelpTextThisFrame(string.Format("Press ~INPUT_CONTEXT~ to fill up. {0}, ~g~${1:0.00}~s~/L.~n~Tank {2:0} of {3:0} L.", gradeLine, PriceAt(nearStation, g), t.Litres, cap));
+                global::RealismSuite.Help.Show(string.Format("Press ~INPUT_CONTEXT~ to fill up. {0}, ~g~${1:0.00}~s~/L.~n~Tank {2:0} of {3:0} L.", gradeLine, PriceAt(nearStation, g), t.Litres, cap));
                 if (secondary && g != Grade.Diesel) chosenGrade = (Grade)(((int)chosenGrade + 1) % 3);
                 if (interact) StartFilling(me, target, false);
                 return;
@@ -689,11 +711,11 @@ namespace RealFuel
 
             if (pumpDist <= cfg.PumpReach)
             {
-                Screen.ShowHelpTextThisFrame("Press ~INPUT_CONTEXT~ to hang up the nozzle.");
+                global::RealismSuite.Help.Show("Press ~INPUT_CONTEXT~ to hang up the nozzle.");
                 if (interact) CancelPumpInteraction(false);
                 return;
             }
-            Screen.ShowHelpTextThisFrame("Walk the nozzle to your vehicle's fuel door.");
+            global::RealismSuite.Help.Show("Walk the nozzle to your vehicle's fuel door.");
         }
 
         private bool FindFiller(Ped me, out Vehicle veh, out Vector3 filler)
@@ -777,7 +799,7 @@ namespace RealFuel
             t.Litres += add;
             fillLitres += add;
             dirty = true;
-            Screen.ShowHelpTextThisFrame(string.Format("{0} ~b~{1}~s~  {2:0.0} L  ~g~${3:0.00}~s~~n~Tank {4:0} of {5:0} L. Press ~a~ to stop.".Replace("~a~", KeyLabel(cfg.InteractKey)),
+            global::RealismSuite.Help.Show(string.Format("{0} ~b~{1}~s~  {2:0.0} L  ~g~${3:0.00}~s~~n~Tank {4:0} of {5:0} L. Press ~a~ to stop.".Replace("~a~", KeyLabel(cfg.InteractKey)),
                 service ? "Attendant filling" : "Filling", g, fillLitres, fillCost, t.Litres, cap));
             if (t.Litres >= cap - 0.01f) StopFilling(false);
         }
@@ -809,7 +831,7 @@ namespace RealFuel
                 return;
             }
             if (!Burns(v) || nearPump == 0 || nearPumpPos.DistanceTo(v.Position) > cfg.FullServicePumpReach) return;
-            if (IsClosed(nearStation)) { if (v.Speed < 0.5f) Screen.ShowHelpTextThisFrame("This station is closed after the explosion."); return; }
+            if (IsClosed(nearStation)) { if (v.Speed < 0.5f) global::RealismSuite.Help.Show("This station is closed after the explosion."); return; }
             if (v.Speed > 0.5f) return;
             TankRecord t = GetTank(v);
             if (t.Litres >= Capacity(v) - 0.1f) return;
@@ -817,13 +839,13 @@ namespace RealFuel
             Game.DisableControlThisFrame(GTA.Control.VehicleHorn);
             if (v.IsEngineRunning)
             {
-                Screen.ShowHelpTextThisFrame(string.Format("Gas station. Switch the engine off (~a~) for full service, or get out to pump it yourself.").Replace("~a~", KeyLabel(cfg.EngineKey)));
+                global::RealismSuite.Help.Show(string.Format("Gas station. Switch the engine off (~a~) for full service, or get out to pump it yourself.").Replace("~a~", KeyLabel(cfg.EngineKey)));
                 return;
             }
             Grade g = EffectiveGrade(v, chosenGrade);
             float price = PriceAt(nearStation, g) * cfg.FullServiceMarkup;
             string gradeLine = g == Grade.Diesel ? "~b~Diesel~s~" : string.Format("~b~{0}~s~ (~a~ to change)", g).Replace("~a~", KeyLabel(cfg.SecondaryKey));
-            Screen.ShowHelpTextThisFrame(string.Format("Press ~a~ for full service: {0}, ~g~${1:0.00}~s~/L plus ~g~${2}~s~ fee.~n~Get out to pump it yourself for less.", gradeLine, price, cfg.FullServiceFee).Replace("~a~", KeyLabel(cfg.InteractKey)));
+            global::RealismSuite.Help.Show(string.Format("Press ~a~ for full service: {0}, ~g~${1:0.00}~s~/L plus ~g~${2}~s~ fee.~n~Get out to pump it yourself for less.", gradeLine, price, cfg.FullServiceFee).Replace("~a~", KeyLabel(cfg.InteractKey)));
             if (secondary && g != Grade.Diesel) chosenGrade = (Grade)(((int)chosenGrade + 1) % 3);
             bool start = interact || Function.Call<bool>(Hash.IS_DISABLED_CONTROL_JUST_PRESSED, 0, (int)GTA.Control.VehicleHorn);
             if (start && Game.GameTime - serviceToggleAt < 700) start = false;   // the stop press arriving a frame late
@@ -875,7 +897,7 @@ namespace RealFuel
                 Game.Player.Money -= (after - before);
             }
             canLitres += add; fillLitres += add; dirty = true;
-            Screen.ShowHelpTextThisFrame(string.Format("Filling the jerry can: {0:0.0} of {1:0} L, ~g~${2:0.00}~s~.", canLitres, cfg.JerryCanLitres, fillCost));
+            global::RealismSuite.Help.Show(string.Format("Filling the jerry can: {0:0.0} of {1:0} L, ~g~${2:0.00}~s~.", canLitres, cfg.JerryCanLitres, fillCost));
         }
 
         private void KeepCanAlive(Ped me, bool holdingCan, float dt)
@@ -911,7 +933,7 @@ namespace RealFuel
                 float add = Math.Min(Math.Min(cfg.PourLitresPerSecond * dt, canLitres), cap - t.Litres);
                 canLitres -= add; t.Litres += add; dirty = true;
                 if (t.Grade == Grade.Diesel && !IsDiesel(v)) t.Grade = Grade.Regular;
-                Screen.ShowHelpTextThisFrame(string.Format("Pouring... can {0:0.0} L, tank {1:0.0} of {2:0} L.", canLitres, t.Litres, cap));
+                global::RealismSuite.Help.Show(string.Format("Pouring... can {0:0.0} L, tank {1:0.0} of {2:0} L.", canLitres, t.Litres, cap));
                 return true;
             }
             if (secondaryHeld && t.Litres > 0.01f && canLitres < cfg.JerryCanLitres - 0.05f)
@@ -919,12 +941,12 @@ namespace RealFuel
                 if (!siphoning) { StopCanAction(me); siphoning = true; PlayAnim(me, "timetable@gardener@filling_can", "gar_ig_5_filling_can", 49); }
                 float take = Math.Min(Math.Min(cfg.SiphonLitresPerSecond * dt, t.Litres), cfg.JerryCanLitres - canLitres);
                 canLitres += take; t.Litres -= take; dirty = true;
-                Screen.ShowHelpTextThisFrame(string.Format("Siphoning... can {0:0.0} of {1:0} L, tank {2:0.0} L left.", canLitres, cfg.JerryCanLitres, t.Litres));
+                global::RealismSuite.Help.Show(string.Format("Siphoning... can {0:0.0} of {1:0} L, tank {2:0.0} L left.", canLitres, cfg.JerryCanLitres, t.Litres));
                 return true;
             }
             if (pouring || siphoning) StopCanAction(me);
 
-            Screen.ShowHelpTextThisFrame(string.Format("Hold ~INPUT_CONTEXT~ to pour from the can ({0:0.0} L).~n~Hold ~a~ to siphon from this tank ({1:0.0} L).", canLitres, t.Litres).Replace("~a~", KeyLabel(cfg.SecondaryKey)));
+            global::RealismSuite.Help.Show(string.Format("Hold ~INPUT_CONTEXT~ to pour from the can ({0:0.0} L).~n~Hold ~a~ to siphon from this tank ({1:0.0} L).", canLitres, t.Litres).Replace("~a~", KeyLabel(cfg.SecondaryKey)));
             return true;
         }
 

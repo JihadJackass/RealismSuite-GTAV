@@ -80,7 +80,7 @@ namespace BusinessV.World
             if (caption != null) h += 18f;
             if (title != null) h += 34f;
             if (caption != null || title != null) h += 10f;
-            foreach (object r in rows) h += r is List<Stat> || r is string && IsDecision((string)r) ? TileH + TileGap : LineH;
+            foreach (object r in rows) h += r is List<Stat> || r is string && IsDecision((string)r) ? TileH + TileGap : r is string && Strip((string)r).TrimStart().StartsWith("~INPUT_", StringComparison.Ordinal) ? LineH + 6f : LineH;
             if (choiceTitle != null) h += 8f + 38f + choiceRows.Count * (TileH + TileGap);
             h += Pad - TileGap;
 
@@ -108,6 +108,20 @@ namespace BusinessV.World
                     Txt("NO", x + bw + TileGap + bw / 2f, y + 11f, 0.45f, !YesSelected ? Gold : Value, GTA.UI.Font.ChaletLondon, Alignment.Center);
                     DecisionFrame = GTA.Game.FrameCount;
                     y += TileH + TileGap;
+                }
+                else if (Strip((string)r).TrimStart().StartsWith("~INPUT_", StringComparison.Ordinal))
+                {
+                    // an action: the key as a keycap, then what it does
+                    string plain = Strip((string)r).Trim();
+                    int close = plain.IndexOf('~', 1);
+                    string what = close > 0 ? plain.Substring(close + 1).Trim() : plain;
+                    string key = KeyName(close > 0 ? plain.Substring(1, close - 1) : "INPUT_CONTEXT");
+                    float kw = Math.Max(26f, 12f + key.Length * 11f);
+                    Box(x, y + 1f, kw, 24f, Value);
+                    Box(x + 1.5f, y + 2.5f, kw - 3f, 21f, Color.FromArgb(255, 30, 34, 44));
+                    Txt(key, x + kw / 2f, y + 2f, 0.34f, Value, GTA.UI.Font.ChaletLondon, Alignment.Center);
+                    Txt(what, x + kw + 10f, y + 1f, 0.36f, Value);
+                    y += LineH + 6f;
                 }
                 else { Txt((string)r, x, y, 0.34f, Value); y += LineH; }
             }
@@ -188,6 +202,17 @@ namespace BusinessV.World
             var t = new TextElement(s, new PointF(x, y), scale, col, f, a, false, false);
             if (a == Alignment.Left) t.WrapWidth = W - Pad * 2f;
             t.Draw();
+        }
+
+        // the key bound to a control, as the game names it: "t_E" for a keyboard key (shown as E); anything else (a pad
+        // button or mouse) has no letter, so the keyboard default is shown
+        static string KeyName(string input)
+        {
+            int control = input == "INPUT_CONTEXT" ? 51 : 51;
+            string s = GTA.Native.Function.Call<string>(GTA.Native.Hash.GET_CONTROL_INSTRUCTIONAL_BUTTONS_STRING, 0, control, true) ?? "";
+            if (s.StartsWith("t_", StringComparison.Ordinal) && s.Length > 2) return s.Substring(2);
+            if (s.StartsWith("T_", StringComparison.Ordinal) && s.Length > 2) return s.Substring(2);
+            return "E";
         }
 
         // colour codes off; button icons (~INPUT_...~) kept

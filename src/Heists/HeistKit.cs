@@ -109,8 +109,47 @@ namespace Heists
             try { if (e.Exists()) e.MarkAsNoLongerNeeded(); } catch { }
         }
 
+        // ---- spawning without anything popping into view. A spot is ready once its area (and interior) has loaded and
+        // either it's off screen, or still far enough away to be a few pixels; right next to you it goes in regardless.
+        // What's made early is held frozen (Stage) until you're close, so it can't drop through ground that isn't loaded.
+        readonly List<int> pinned = new List<int>();
+        readonly List<Entity> staged = new List<Entity>();
+        public bool SpawnWindow(Vector3 at, Ped me, float far = 260f)
+        {
+            float d = me.Position.DistanceTo(at);
+            if (d > far) return false;
+            Function.Call(Hash.REQUEST_COLLISION_AT_COORD, at.X, at.Y, at.Z);
+            int interior = Function.Call<int>(Hash.GET_INTERIOR_AT_COORDS, at.X, at.Y, at.Z);
+            if (interior != 0)
+            {
+                if (!pinned.Contains(interior)) { pinned.Add(interior); Function.Call(Hash.PIN_INTERIOR_IN_MEMORY, interior); }
+                if (!Function.Call<bool>(Hash.IS_INTERIOR_READY, interior) && d > 40f) return false;
+            }
+            if (d < 60f) return true;
+            if (!Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, at.X, at.Y, at.Z, 6f)) return true;
+            return d > 150f;
+        }
+        public void Stage(Entity e) { if (e == null || !e.Exists()) return; e.IsPositionFrozen = true; staged.Add(e); }
+        public void ReleaseStaged(Ped me)
+        {
+            for (int i = staged.Count - 1; i >= 0; i--)
+            {
+                Entity e = staged[i];
+                if (e == null || !e.Exists()) { staged.RemoveAt(i); continue; }
+                float d = me.Position.DistanceTo(e.Position);
+                if (d < 35f || d < 110f && Function.Call<bool>(Hash.HAS_COLLISION_LOADED_AROUND_ENTITY, e))
+                {
+                    e.IsPositionFrozen = false;
+                    Vehicle v = e as Vehicle; if (v != null) v.PlaceOnGround();
+                    staged.RemoveAt(i);
+                }
+            }
+        }
+
         public void Clear()
         {
+            foreach (int i in pinned) Function.Call(Hash.UNPIN_INTERIOR, i);
+            pinned.Clear(); staged.Clear();
             foreach (Blip b in blips) { try { if (b.Exists()) b.Delete(); } catch { } }
             blips.Clear();
             foreach (Entity e in entities)
@@ -205,6 +244,7 @@ namespace Heists
     {
         static string objective = "";
         static int objectiveUntil;
+        static string briefed;
 
         // game style: the objective shows for a while when it's given, and again when it changes
         public static void Objective(string text)
@@ -223,17 +263,18 @@ namespace Heists
         public static void DrawObjective()
         {
             if (objective.Length == 0 || Game.GameTime > objectiveUntil) return;
+            // redrawn every frame; only the first one goes in the Brief (the second PRINT argument is "show now", not the Brief)
+            Function.Call(Hash.ADD_NEXT_MESSAGE_TO_PREVIOUS_BRIEFS, objective != briefed);
             Function.Call(Hash.BEGIN_TEXT_COMMAND_PRINT, "STRING");
             Function.Call(Hash.ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME, objective);
             Function.Call(Hash.END_TEXT_COMMAND_PRINT, 300, true);
+            briefed = objective;
         }
 
         // a prompt is only ever shown while you're standing where it applies
         public static void Prompt(string text)
         {
-            Function.Call(Hash.BEGIN_TEXT_COMMAND_DISPLAY_HELP, "STRING");
-            Function.Call(Hash.ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME, text);
-            Function.Call(Hash.END_TEXT_COMMAND_DISPLAY_HELP, 0, false, false, -1);
+            global::RealismSuite.Help.Show(text);
         }
 
         public static bool Pressed(Control c) { return Game.IsControlJustPressed(c); }

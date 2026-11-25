@@ -472,8 +472,12 @@ namespace IllligalGamblingDens
 
 		public List<float> RouletteTablesRot = new List<float>();
 
+		// RealismSuite: the blackjack module reads the den's tables from here
+		public static Class1 Instance;
+
 		public Class1()
 		{
+			Instance = this;
 			base.Tick += OnTick;
 			base.Aborted += OnShutdown;
 			Setup();
@@ -481,7 +485,8 @@ namespace IllligalGamblingDens
 
 		public void Setup()
 		{
-			DenEnterances.Add(new Enterace(new Vector3(-1224.634f, -1083.173f, 7.2f), new Vector3(1004.439f, -2997.753f, -48.5f), 1));
+			if (!global::Gambling.DenModule.Enabled)   // RealismSuite: the card room in the biker clubhouse replaces this den
+				DenEnterances.Add(new Enterace(new Vector3(-1224.634f, -1083.173f, 7.2f), new Vector3(1004.439f, -2997.753f, -48.5f), 1));
 			foreach (Enterace denEnterance in DenEnterances)
 			{
 				if (denEnterance != null)
@@ -6295,7 +6300,7 @@ namespace IllligalGamblingDens
 					{
 					}
 				}
-				for (int j = 0; j < SlotLocH.Count; j++)
+				for (int j = 0; !global::Gambling.SlotsModule.Enabled && j < SlotLocH.Count; j++)
 				{
 					if (SlotLocH[j].In_use)
 					{
@@ -10277,7 +10282,7 @@ namespace IllligalGamblingDens
 			if (_8PlayerPokerGameTable1 != null)
 			{
 				Vector3 offsetInWorldCoords13 = _8PlayerPokerGameTable3.GetOffsetInWorldCoords(new Vector3(-1.05f, -0.65f, 0.25f));
-				if (World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords13) < 2.25f)
+				if (!global::Gambling.HoldemModule.Enabled && World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords13) < 2.25f)
 				{
 					if (Playing8PlayerPoker)
 					{
@@ -10310,7 +10315,7 @@ namespace IllligalGamblingDens
 			if (_8PlayerPokerGameTable5 != null)
 			{
 				Vector3 offsetInWorldCoords14 = _8PlayerPokerGameTable5.GetOffsetInWorldCoords(new Vector3(-1.05f, -0.65f, 0.25f));
-				if (World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords14) < 2.25f)
+				if (!global::Gambling.HoldemModule.Enabled && World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords14) < 2.25f)
 				{
 					if (Playing8PlayerPoker)
 					{
@@ -10343,7 +10348,7 @@ namespace IllligalGamblingDens
 			if (_8PlayerPokerGameTable6 != null)
 			{
 				Vector3 offsetInWorldCoords15 = _8PlayerPokerGameTable6.GetOffsetInWorldCoords(new Vector3(-1.05f, -0.65f, 0.25f));
-				if (World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords15) < 2.25f)
+				if (!global::Gambling.HoldemModule.Enabled && World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords15) < 2.25f)
 				{
 					if (Playing8PlayerPoker)
 					{
@@ -12641,7 +12646,7 @@ namespace IllligalGamblingDens
 				if (_8PlayerPokerGameTable1 != null)
 				{
 					Vector3 offsetInWorldCoords16 = _8PlayerPokerGameTable3.GetOffsetInWorldCoords(new Vector3(-1.05f, -0.65f, 0.25f));
-					if (World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords16) < 2.25f)
+					if (!global::Gambling.HoldemModule.Enabled && World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords16) < 2.25f)
 					{
 						try
 						{
@@ -13251,7 +13256,7 @@ namespace IllligalGamblingDens
 				if (_8PlayerPokerGameTable5 != null)
 				{
 					Vector3 offsetInWorldCoords25 = _8PlayerPokerGameTable5.GetOffsetInWorldCoords(new Vector3(-1.05f, -0.65f, 0.25f));
-					if (World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords25) < 2.25f)
+					if (!global::Gambling.HoldemModule.Enabled && World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords25) < 2.25f)
 					{
 						try
 						{
@@ -13861,7 +13866,7 @@ namespace IllligalGamblingDens
 				if (_8PlayerPokerGameTable6 != null)
 				{
 					Vector3 offsetInWorldCoords34 = _8PlayerPokerGameTable6.GetOffsetInWorldCoords(new Vector3(-1.05f, -0.65f, 0.25f));
-					if (World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords34) < 2.25f)
+					if (!global::Gambling.HoldemModule.Enabled && World.GetDistance(Game.Player.Character.Position, offsetInWorldCoords34) < 2.25f)
 					{
 						try
 						{
@@ -15170,7 +15175,7 @@ namespace IllligalGamblingDens
 				Vector3 offsetInWorldCoords65 = Game.Player.Character.GetOffsetInWorldCoords(new Vector3(0.25f, 0.55f, -0.45f));
 				Vector3 offsetInWorldCoords66 = Game.Player.Character.GetOffsetInWorldCoords(new Vector3(0.4f, 0.6f, 0f));
 			}
-			for (int num89 = 0; num89 < BlackJackTables.Count; num89++)
+			for (int num89 = 0; !global::Gambling.BlackjackModule.Enabled && num89 < BlackJackTables.Count; num89++)
 			{
 				if (World.GetDistance(Game.Player.Character.Position, BlackJackTables[num89]) < 2f)
 				{
@@ -15196,7 +15201,7 @@ namespace IllligalGamblingDens
 					}
 				}
 			}
-			for (int num90 = 0; num90 < BlackJackTables.Count; num90++)
+			for (int num90 = 0; !global::Gambling.BlackjackModule.Enabled && num90 < BlackJackTables.Count; num90++)
 			{
 				if (!(World.GetDistance(Game.Player.Character.Position, BlackJackTables[num90]) < 2f))
 				{

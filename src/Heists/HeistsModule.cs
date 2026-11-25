@@ -44,6 +44,7 @@ namespace Heists
         public abstract string Where(JobState s);
         public abstract Step Make(int index, JobState s);
         public virtual CrewSlot[] Crew { get { return new CrewSlot[0]; } }   // who you can bring on the finale
+        public virtual string NotReady(int index) { return null; }            // Lester's reason a step can't be played yet
         // what Lester pays out of your cut afterwards (getting rid of cars, cleaners, bodies)
         public virtual List<KeyValuePair<string, long>> Expenses(Run r, long value) { return new List<KeyValuePair<string, long>>(); }
     }
@@ -86,7 +87,8 @@ namespace Heists
         public int StartedAt;
         public long Take;                 // what the finale has collected so far
         public long Lost;                 // dropped from the bag when you got shot
-        public bool Gold;                 // the take is gold: Lester has to fence it
+        public bool Gold;                 // the take has to be fenced by Lester (gold, a data drive): paid later, less his buyer's cut
+        public string Loot = "gold";      // what's being fenced, for the results screen and his text
         public Dictionary<string, CrewMember> Crew = new Dictionary<string, CrewMember>();   // slot key -> who (finale only)
         public Random Rng = new Random();
         public bool IsFinale { get { return StepIndex == Job.Steps.Length - 1; } }
@@ -98,12 +100,12 @@ namespace Heists
         static string logPath, dataPath;
         internal static void Log(string m) { try { File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss") + "  " + m + Environment.NewLine); } catch { } }
 
-        readonly List<Job> jobs = new List<Job> { new FleecaJob() };
+        readonly List<Job> jobs = new List<Job> { new FleecaJob(), new LifeinvaderJob() };
         readonly Dictionary<string, JobState> states = new Dictionary<string, JobState>();
         Run run;
         long playSeconds, lastPlaySave; float playAcc;
         int lastModel, upkeepAt;
-        bool setMissionFlag;
+        bool pausedEvents;
 
         // story missions passed before Lester offers side work (he's met around the jewel store job)
         const int UnlockAfterMissions = 8;
@@ -140,6 +142,7 @@ namespace Heists
             if (Game.GameTime > upkeepAt) { upkeepAt = Game.GameTime + 15000; try { CrewRoster.Upkeep(playSeconds); } catch (Exception ex) { Log("Crew upkeep: " + ex.Message); } }
 
             Kit.Upkeep();
+            if (run == null && flagLeftOn) MissionFlagUpkeep();
             if (Results.Draw()) return;
             Hud.DrawShard();
             KeepContact();
@@ -161,6 +164,7 @@ namespace Heists
             else if (me.Model.Hash != lastModel) why = "You switched character.";
             if (why != null) { Fail(why); return; }
 
+            run.Kit.ReleaseStaged(me);
             StepResult r;
             try { r = run.Step.Tick(me); }
             catch (Exception ex) { Log("Step error: " + ex); Fail("Something went wrong (logged)."); return; }
@@ -179,6 +183,8 @@ namespace Heists
             JobState s = State(job.Id);
             if (s.Target < 0) { job.Prepare(s, new Random()); Save(); }
             int index = Math.Min(s.Step, job.Steps.Length - 1);
+            string notReady = job.NotReady(index);
+            if (notReady != null) return notReady;
             var crew = new Dictionary<string, CrewMember>();
             if (index == job.Steps.Length - 1)
             {
@@ -193,7 +199,11 @@ namespace Heists
             run.Step = job.Make(index, s);
             run.Step.R = run;
             lastModel = Game.Player.Character.Model.Hash;
-            if (!Game.IsMissionActive) { Function.Call(Hash.SET_MISSION_FLAG, true); setMissionFlag = true; }
+            // The game's own mission flag is NOT used: once a script sets it, switching it off again doesn't take on the
+            // Enhanced build (seen twice on 23 Nov), and a stuck flag sends our police, breakdowns, phone contacts and
+            // SPA II's map icons into mission mode until the game restarts. Our modules stand down on CustomHeist instead,
+            // and random events are paused for the job.
+            Function.Call(Hash.SET_RANDOM_EVENT_FLAG, false); pausedEvents = true;
             global::RealismSuite.Missions.CustomHeist = true;
             Log("Started " + job.Title + ": " + job.Steps[index] + " (" + job.Where(s) + ")" + (crew.Count > 0 ? " crew: " + string.Join(", ", crew.Select(kv => kv.Key + "=" + kv.Value.Name)) : ""));
             try { run.Step.Start(); }
@@ -215,7 +225,7 @@ namespace Heists
                 long net = value - fence;
                 long lester = net * LesterCutPercent / 100;
                 Results.Begin("heist passed", r.Job.Title);
-                Results.Add(r.Gold ? "Take (gold)" : "Take", Hud.Money(gross));
+                Results.Add(r.Gold ? "Take (" + r.Loot + ")" : "Take", Hud.Money(gross));
                 if (lost > 0) Results.Add("Dropped when you were hit", "-" + Hud.Money(lost), true);
                 if (fence > 0) Results.Add("Fence (30%)", "-" + Hud.Money(fence), true);
                 Results.Add("Lester's cut (" + LesterCutPercent + "%)", "-" + Hud.Money(lester));
@@ -239,8 +249,8 @@ namespace Heists
                 if (r.Gold)
                 {
                     // Lester moves the gold; you're paid when it sells (about 20 minutes of play)
-                    pay.Add(new Payment { Due = playSeconds + 20 * 60, Amount = mine, Text = "The gold from the " + r.Job.Title + " sold. Your cut's in your account: " + Hud.Money(mine) + "." });
-                    Results.Note("Lester is fencing the gold. Your cut arrives once it sells.");
+                    pay.Add(new Payment { Due = playSeconds + 20 * 60, Amount = mine, Text = "The " + r.Loot + " from the " + r.Job.Title + " sold. Your cut's in your account: " + Hud.Money(mine) + "." });
+                    Results.Note("Lester is selling the " + r.Loot + ". Your cut arrives once it sells.");
                 }
                 else Game.Player.Money += (int)Math.Min(int.MaxValue, mine);
                 s.Completed++; s.LastTake = mine; s.TotalTake += mine;
@@ -257,7 +267,8 @@ namespace Heists
                 Log(r.Job.Title + ": " + name + " done");
                 EndRun("setup done", true, false);
                 Hud.Shard("SETUP COMPLETE", name, true);
-                Hud.Text(s.Step == r.Job.Steps.Length - 1
+                Hud.Text(r.Job.NotReady(s.Step) != null ? r.Job.NotReady(s.Step)
+                    : s.Step == r.Job.Steps.Length - 1
                     ? "That's everything. Come by the factory and we'll pick the crew."
                     : "Good. Come by the factory when you're ready for the next part: " + r.Job.Steps[s.Step] + ".");
             }
@@ -280,7 +291,7 @@ namespace Heists
             try { r.Step.End(); } catch (Exception ex) { Log("Step end error: " + ex.Message); }
             r.Kit.Clear();
             Hud.ClearObjective();
-            if (setMissionFlag) { Function.Call(Hash.SET_MISSION_FLAG, false); setMissionFlag = false; }
+            if (pausedEvents) { Function.Call(Hash.SET_RANDOM_EVENT_FLAG, true); pausedEvents = false; }
             global::RealismSuite.Missions.CustomHeist = false;
             if (!passed && !quiet && Game.Player.WantedLevel > 0) Log("Left with " + Game.Player.WantedLevel + " star(s)");
             Log("Run ended: " + why);
@@ -725,6 +736,18 @@ namespace Heists
             }
         }
 
+        // The game's mission flag is what tells everything (our police, vehicle breakdowns, other mods) a mission is on.
+        // A job sets it and must switch it off again: re-send it for a few seconds after the job, and clear one a job
+        // left on if the scripts were stopped mid-job (flagLeftOn comes from Heists.dat).
+        // an older build set the game's mission flag during jobs; if one was interrupted, try to switch it off once
+        bool flagLeftOn;
+        void MissionFlagUpkeep()
+        {
+            if (!Game.Player.CanControlCharacter) return;
+            flagLeftOn = false; Save();
+            if (Game.IsMissionActive) { Function.Call(Hash.SET_MISSION_FLAG, false); Log("Tried to switch off a mission flag an older build left on (a game restart clears it for sure)"); }
+        }
+
         // ================================================================== save / load
         void Load()
         {
@@ -738,6 +761,7 @@ namespace Heists
                     if (line.Length == 0 || line.StartsWith(";")) continue;
                     string[] p = line.Split('|');
                     if (p[0] == "PLAY" && p.Length > 1) long.TryParse(p[1], out playSeconds);
+                    else if (p[0] == "FLAG") flagLeftOn = true;
                     else if (p[0] == "PAY" && p.Length > 3) { var x = new Payment { Text = p[3] }; long.TryParse(p[1], out x.Due); long.TryParse(p[2], out x.Amount); pay.Add(x); }
                     else if (p[0] == "JOB" && p.Length > 1) s = State(p[1]);
                     else if (s != null && p.Length > 1)
@@ -767,6 +791,7 @@ namespace Heists
                 var sb = new StringBuilder();
                 sb.Append("; Heists progress. Delete a JOB block to reset that job.\n");
                 sb.Append("PLAY|").Append(playSeconds).Append('\n');
+                if (flagLeftOn) sb.Append("FLAG|1\n");
                 foreach (Payment x in pay) sb.Append("PAY|").Append(x.Due).Append('|').Append(x.Amount).Append('|').Append(x.Text.Replace("|", "/")).Append('\n');
                 foreach (JobState s in states.Values)
                 {

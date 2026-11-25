@@ -135,7 +135,11 @@ namespace Police
         int lastArrestTask;
 
         // things police find out without a witness: officers attacked or killed, bodies
-        sealed class Bodies { public Vector3 Scene; public int Kills, DiscoverAt, Started; }
+        sealed class Bodies
+        {
+            public Vector3 Scene; public int Kills, DiscoverAt, Started;
+            public readonly List<KeyValuePair<int, Vector3>> Each = new List<KeyValuePair<int, Vector3>>();   // the bodies counted: handle, where
+        }
         Bodies bodies;
         readonly Dictionary<int, int> handledDead = new Dictionary<int, int>();
         readonly HashSet<int> scaredWitness = new HashSet<int>();
@@ -146,6 +150,7 @@ namespace Police
             "sheriff", "sheriff2", "pranger", "fbi", "fbi2", "polmav", "riot", "riot2", "pbus", "lguard" }.Select(Hash));
 
         // where the police think you are
+        bool loggedMission;
         Vector3 lastSeenPos; int lastSeenAt; bool forcedSearch, dispatchMoved;
         int searchStartAt; Vector3 searchFrom;
         Vector3 blipAt; float blipRadius; bool blipFlash; int blipBuiltAt;
@@ -391,8 +396,8 @@ namespace Police
         {
             var d = new Description();
             for (int i = 0; i < 12; i++) d.Comp[i] = Function.Call<int>(GTA.Native.Hash.GET_PED_DRAWABLE_VARIATION, me, i);
-            d.Hat = Function.Call<int>(GTA.Native.Hash.GET_PED_PROP_INDEX, me, 0);
-            d.Glasses = Function.Call<int>(GTA.Native.Hash.GET_PED_PROP_INDEX, me, 1);
+            d.Hat = Function.Call<int>(GTA.Native.Hash.GET_PED_PROP_INDEX, me, 0, 1);
+            d.Glasses = Function.Call<int>(GTA.Native.Hash.GET_PED_PROP_INDEX, me, 1, 1);
             d.Beard = Function.Call<int>((GTA.Native.Hash)0xA60EF3B6461A4D43, me, 1);
             d.OutfitKnown = outfit;
             Vehicle v = me.CurrentVehicle;
@@ -445,6 +450,8 @@ namespace Police
 
         bool Masked(Description d, Ped me)
         {
+            // component 1 is a mask only on the freemode models; on Michael, Franklin and Trevor it's their beard
+            if (!global::RealismSuite.AccessoriesModule.MaskIsComponent(me)) return false;
             int mask = Function.Call<int>(GTA.Native.Hash.GET_PED_DRAWABLE_VARIATION, me, 1);
             return mask > 0 && mask != d.Comp[1];
         }
@@ -458,10 +465,11 @@ namespace Police
             if (Dr(4) != d.Comp[4]) s += 6;                                              // pants
             if (Dr(6) != d.Comp[6]) s += 2;                                              // shoes
             if (Dr(2) != d.Comp[2]) s += 4;                                              // hair
-            if (d.Comp[1] > 0 && Dr(1) != d.Comp[1]) s += 12;                            // they only ever saw you masked
+            if (global::RealismSuite.AccessoriesModule.MaskIsComponent(me)) { if (d.Comp[1] > 0 && Dr(1) != d.Comp[1]) s += 12; }   // they only ever saw you masked
+            else if (Dr(1) != d.Comp[1]) s += 4;                                         // story characters: component 1 is the beard
             if (Function.Call<int>((GTA.Native.Hash)0xA60EF3B6461A4D43, me, 1) != d.Beard) s += 4;   // beard
-            if (Function.Call<int>(GTA.Native.Hash.GET_PED_PROP_INDEX, me, 0) != d.Hat) s += 3;             // hat
-            if (Function.Call<int>(GTA.Native.Hash.GET_PED_PROP_INDEX, me, 1) != d.Glasses) s += 2;         // glasses
+            if (Function.Call<int>(GTA.Native.Hash.GET_PED_PROP_INDEX, me, 0, 1) != d.Hat) s += 3;             // hat
+            if (Function.Call<int>(GTA.Native.Hash.GET_PED_PROP_INDEX, me, 1, 1) != d.Glasses) s += 2;         // glasses
             return s;
         }
 
@@ -504,6 +512,11 @@ namespace Police
                 return;
             }
 
+            if (booted && mission != loggedMission)
+            {
+                loggedMission = mission;
+                Log(mission ? "Standing down: mission on (" + (RealismSuite.Missions.CustomHeist ? "heist" : "game mission flag") + ")" : "Back on duty: mission over");
+            }
             Ready = booted && control && !mission;
             if (!booted || mission)
             {
@@ -697,9 +710,8 @@ namespace Police
             Function.Call(GTA.Native.Hash.FORCE_START_HIDDEN_EVASION, Game.Player);
             Function.Call(GTA.Native.Hash.SET_DISPATCH_SPAWN_LOCATION, pos.X, pos.Y, pos.Z);
             dispatchMoved = true; forcedSearch = true; searchStartAt = Game.GameTime; searchFrom = pos;
-            Vector3 c = Function.Call<Vector3>(GTA.Native.Hash.GET_PLAYER_WANTED_CENTRE_POSITION, Game.Player);
-            Log("Police searching from " + why + " (" + pos.X.ToString("0") + ", " + pos.Y.ToString("0") + "); search centre now "
-                + c.X.ToString("0") + ", " + c.Y.ToString("0") + ", you are " + Game.Player.Character.Position.DistanceTo(pos).ToString("0") + " m away");
+            Log("Police searching from " + why + " (" + pos.X.ToString("0") + ", " + pos.Y.ToString("0") + "); you are "
+                + Game.Player.Character.Position.DistanceTo(pos).ToString("0") + " m away");
         }
 
         void EndSearchOverride()
@@ -750,7 +762,7 @@ namespace Police
                     if (Function.Call<int>(GTA.Native.Hash.GET_PED_RELATIONSHIP_GROUP_HASH, p) == PcCriminals) continue;   // police computer targets
                     int t = Function.Call<int>(GTA.Native.Hash.GET_PED_TYPE, p);
                     if (t == 6 || t == 27) { lastCopHurtAt = now; Alert(me, 3, p.Position, "officer down", true); }
-                    else if (t == 4 || t == 5) AddBody(p.Position, now);   // civilians; gang members' friends don't call the police
+                    else if (t == 4 || t == 5) AddBody(p.Handle, p.Position, now);   // civilians; gang members' friends don't call the police
                 }
                 else if (IsCop(p) && p.Position.DistanceTo(me.Position) < 500f && Function.Call<bool>(GTA.Native.Hash.HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY, p, me, true))
                 {
@@ -792,12 +804,32 @@ namespace Police
                     if (v != null && v.Exists() && PoliceModels.Contains(v.Model.Hash)) Function.Call(GTA.Native.Hash.CLEAR_ENTITY_LAST_DAMAGE_ENTITY, v);
         }
 
-        void AddBody(Vector3 pos, int now)
+        void AddBody(int handle, Vector3 pos, int now)
         {
             if (bodies == null) bodies = new Bodies { Scene = pos, Kills = 0, Started = now, DiscoverAt = now + rng.Next(45000, 90000) };
             bodies.Kills++;
+            bodies.Each.Add(new KeyValuePair<int, Vector3>(handle, pos));
             if (bodies.Kills >= 3) bodies.DiscoverAt = Math.Min(bodies.DiscoverAt, now + 30000);   // a massacre doesn't go unnoticed for long
             Log("Body left (" + bodies.Kills + " so far)");
+        }
+
+        // the Bodies module calls this when you shut a body in a trunk: a body nobody has found yet isn't found there
+        // Only a body this scene counted (one you killed): someone else's victim was never part of it. Matched by the
+        // corpse's handle, or failing that by where it lay (a ragdoll can settle a little after it's counted).
+        internal void BodyHidden(Vector3 where, int handle = 0)
+        {
+            if (bodies == null) return;
+            int i = handle != 0 ? bodies.Each.FindIndex(b => b.Key == handle) : -1;
+            if (i < 0)
+            {
+                float best = 4f;
+                for (int j = 0; j < bodies.Each.Count; j++) { float d = bodies.Each[j].Value.DistanceTo(where); if (d < best) { best = d; i = j; } }
+            }
+            if (i < 0) return;
+            bodies.Each.RemoveAt(i);
+            bodies.Kills = Math.Min(bodies.Kills - 1, bodies.Each.Count);
+            Log("Body hidden in a trunk before anyone found it (" + bodies.Kills + " left)");
+            if (bodies.Kills <= 0) bodies = null;
         }
 
         void UpdateBodies(Ped me, int now)
@@ -1389,6 +1421,8 @@ namespace Police
                     else if (CurrentWarrant(me) != null) deathPct = DeathPctWarrant;
                 }
                 ResetChase("died"); prevWanted = 0;
+                // dying settles it: the chase ends and so does the warrant (you've paid the hospital, the cops have closed it)
+                if (!RealismSuite.Missions.Active) ClearWarrant(me, "died");
                 if (arrest != Arrest.None) { arrest = Arrest.None; Busy = false; Function.Call(GTA.Native.Hash.FREEZE_ENTITY_POSITION, me, false); }
                 Log("Died" + (deathPct > 0 ? ", will lose " + deathPct + "% of cash" : ""));
             }

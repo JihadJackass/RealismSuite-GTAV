@@ -2,6 +2,7 @@
 // and the finale (drill the vault lock, empty the cash trolley, lose the cops, drop the money off).
 // Branch positions, vault door angles and trolley spots come from Single Player Heists.
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using GTA;
 using GTA.Math;
@@ -62,6 +63,48 @@ namespace Heists
                 if (name.Length == 0) name = "Fleeca";
                 return name;
             }
+        }
+
+        // ---- the front doors. Some branches are locked in story mode (Great Ocean Hwy is one): while a job is on and you're
+        // near, they're unlocked every second (in case the game locks them again), and put back as they were afterwards.
+        static readonly string[] EntranceModels = { "v_ilev_genbankdoor1", "v_ilev_genbankdoor2" };
+        readonly Dictionary<int, bool> entranceWasLocked = new Dictionary<int, bool>();
+        int nextDoorCheck; bool entranceLogged;
+        public void KeepEntranceOpen(Ped me)
+        {
+            if (Game.GameTime < nextDoorCheck || me.Position.DistanceTo(Entrance) > 90f) return;
+            nextDoorCheck = Game.GameTime + 1000;
+            var found = new List<string>();
+            foreach (string m in EntranceModels)
+            {
+                int h = Game.GenerateHash(m);
+                Prop d = Function.Call<Prop>(Hash.GET_CLOSEST_OBJECT_OF_TYPE, Entrance.X, Entrance.Y, Entrance.Z, 12f, h, false, false, false);
+                if (d == null || !d.Exists()) continue;
+                Vector3 at = d.Position;
+                if (!entranceWasLocked.ContainsKey(h))
+                {
+                    var locked = new OutputArgument(); var heading = new OutputArgument();
+                    Function.Call(Hash.GET_STATE_OF_CLOSEST_DOOR_OF_TYPE, h, at.X, at.Y, at.Z, locked, heading);
+                    entranceWasLocked[h] = locked.GetResult<bool>();
+                }
+                Function.Call(Hash.SET_STATE_OF_CLOSEST_DOOR_OF_TYPE, h, at.X, at.Y, at.Z, false, 0f, false);
+                found.Add(m + (entranceWasLocked[h] ? " (was locked)" : ""));
+            }
+            if (!entranceLogged)
+            {
+                entranceLogged = true;
+                HeistsModule.Log(found.Count == 0 ? "Front doors NOT found near " + Entrance : "Front doors unlocked: " + string.Join(", ", found));
+            }
+        }
+        public void RestoreEntrance()
+        {
+            foreach (var kv in entranceWasLocked)
+            {
+                if (!kv.Value) continue;
+                Prop d = Function.Call<Prop>(Hash.GET_CLOSEST_OBJECT_OF_TYPE, Entrance.X, Entrance.Y, Entrance.Z, 12f, kv.Key, false, false, false);
+                if (d != null && d.Exists()) Function.Call(Hash.SET_STATE_OF_CLOSEST_DOOR_OF_TYPE, kv.Key, d.Position.X, d.Position.Y, d.Position.Z, true, 0f, false);
+            }
+            entranceWasLocked.Clear(); entranceLogged = false;
         }
 
         // The vault door is part of the map. It's looked up by model first, then by whatever sits in the
@@ -273,6 +316,7 @@ namespace Heists
         Blip blip;
         int phase, lookedMs, lastTick;
         public FleecaScope(FleecaBranch branch) { b = branch; }
+        public override void End() { b.RestoreEntrance(); }
 
         bool people;
         public override void Start()
@@ -284,9 +328,10 @@ namespace Heists
 
         public override StepResult Tick(Ped me)
         {
+            b.KeepEntranceOpen(me);
             int now = Game.GameTime, dt = Math.Min(200, now - lastTick); lastTick = now;
             if (Game.Player.WantedLevel > 0 && me.Position.DistanceTo(b.Entrance) < 120f) return Fail("You drew attention to the bank.");
-            if (!people && me.Position.DistanceTo(b.VaultDoor) < 100f) { people = true; b.People(Kit, b.Lobby(0.45f), R.Rng); }
+            if (!people && Kit.SpawnWindow(b.VaultDoor, me)) { people = true; foreach (Ped p in b.People(Kit, b.Lobby(0.45f), R.Rng)) Kit.Stage(p); }
             switch (phase)
             {
                 case 0:
@@ -350,6 +395,7 @@ namespace Heists
                 Vector3 at = Geo.Ground(car.GetOffsetPosition(offsets[i])) + new Vector3(0, 0, 1f);
                 Ped g = Kit.Ped(Vagos[i % Vagos.Length], at, car.Heading + 90f + i * 40f);
                 if (g == null) continue;
+                Kit.Stage(g);
                 Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, g, group);
                 g.Weapons.Give(i == 0 ? WeaponHash.MicroSMG : WeaponHash.Pistol, 250, true, true);
                 g.Armor = 40; g.Accuracy = 25;
@@ -371,7 +417,7 @@ namespace Heists
                 HeistsModule.Log("Using the Kuruma you're already in");
             }
             // the car only exists once you're close enough for the area to be loaded
-            if (car == null && me.Position.DistanceTo(carSpot) < 220f)
+            if (car == null && Kit.SpawnWindow(carSpot, me, 240f))
             {
                 car = Kit.Car("kuruma2", carSpot, carH);
                 if (car == null) return Fail("The Kuruma couldn't be spawned (logged).");
@@ -379,6 +425,7 @@ namespace Heists
                 car.IsAlarmSet = true;
                 Function.Call(Hash.SET_VEHICLE_NEEDS_TO_BE_HOTWIRED, car, true);
                 Guards();
+                Kit.Stage(car);
                 Kit.Remove(blip);
                 blip = Kit.BlipOn(car, BlipSprite.PersonalVehicleCar, BlipColor.Blue, "Kuruma", true);
             }
@@ -507,6 +554,7 @@ namespace Heists
 
         public override StepResult Tick(Ped me)
         {
+            b.KeepEntranceOpen(me);
             int now = Game.GameTime, dt = Math.Min(200, now - lastTick); lastTick = now;
             squad.Watch();
             MoneyLost(me, now);
@@ -517,20 +565,22 @@ namespace Heists
                 SetBlip(drop, BlipSprite.Standard, BlipColor.Yellow, "Drop-off", !CrewDriving);
 
             // the Kuruma, with the crew already in it, waits on the side street; spawned once the area is loaded
-            if (car == null && phase == P.ToCar && me.Position.DistanceTo(lockup) < 250f)
+            if (car == null && phase == P.ToCar && Kit.SpawnWindow(lockup, me, 250f))
             {
                 car = Kit.Car("kuruma2", lockup, lockH);
                 if (car == null) return Fail("The Kuruma couldn't be spawned (logged).");
                 car.PlaceOnGround();
                 car.LockStatus = VehicleLockStatus.Unlocked;
                 if (!squad.Spawn(car)) return Fail("Your crew couldn't be spawned (logged).");
+                Kit.Stage(car);
                 BlipCar(true);
             }
             // the staff and customers, and the trolley, go in once the bank is loaded
-            if (!people && me.Position.DistanceTo(b.VaultDoor) < 100f && phase <= P.Inside)
+            if (!people && phase <= P.Inside && Kit.SpawnWindow(b.VaultDoor, me))
             {
                 people = true;
                 var made = b.People(Kit, lobby, R.Rng);
+                foreach (Ped p in made) Kit.Stage(p);
                 if (made.Count > 0 && made[0].Model.Hash == Game.GenerateHash("u_m_m_bankman")) manager = made[0];
             }
             if (trolley == null && me.Position.DistanceTo(b.VaultDoor) < 120f)
@@ -948,6 +998,7 @@ namespace Heists
 
         public override void End()
         {
+            b.RestoreEntrance();
             drill.End();
             if (grab != null) grab.Abort();
             // put the vault door back the way it was

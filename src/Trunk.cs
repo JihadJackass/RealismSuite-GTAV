@@ -27,11 +27,21 @@ namespace Police
     {
         public int Hash, Ammo, Tint;
         public List<int> Comps = new List<int>();
+        public float Litres;          // a jerry can's petrol (RealFuel)
     }
 
     public sealed class Trunk : global::RealismSuite.Module
     {
         internal static bool PanelOpen;
+
+        // for the Bodies module (src/Bodies): the same boot point and stash key the trunk uses; Quiet keeps the trunk
+        // prompt and panel shut while you're carrying someone; ExtraHint adds a line under this trunk's prompt;
+        // Prompted is the car the prompt is showing for
+        internal static bool Quiet;
+        internal static string ExtraHint;
+        internal static Vehicle Prompted;
+        internal static Vector3 BootOf(Vehicle v) { return BootPos(v); }
+        internal static string KeyFor(Vehicle v) { return KeyOf(v); }
 
         static readonly string[] WeaponNames = {
             "KNIFE","NIGHTSTICK","HAMMER","BAT","GOLFCLUB","CROWBAR","BOTTLE","DAGGER","HATCHET","KNUCKLE","MACHETE","SWITCHBLADE",
@@ -114,7 +124,7 @@ namespace Police
             Tick += OnTick;
             KeyDown += OnKeyDown;
             KeyUp += (s, e) => { if (e.KeyCode == PoliceScript.TrunkKey) { keyHeld = false; keyDownAt = -1; } };
-            Aborted += (s, e) => Close();
+            Aborted += (s, e) => { TrunkWardrobe.Abort(); Close(); };
         }
 
         // A character's main / secondary ride (SwapMainRide, or the story default) shares one trunk across every copy of it:
@@ -199,6 +209,13 @@ namespace Police
                 && !Function.Call<bool>(Hash.IS_PLAYER_SWITCH_IN_PROGRESS);
         }
 
+        // for the interaction menu's Quick GPS: where this character's main ride is, if it's spawned
+        internal static IEnumerable<Vector3> MainRidePositions()
+        {
+            foreach (Vehicle v in World.GetAllVehicles())
+                if (v != null && v.Exists() && !v.IsDead && IsMainModel(v) && IsPersonalCar(v)) yield return v.Position;
+        }
+
         static bool IsMainModel(Vehicle v)
         {
             Ped me = Game.Player.Character;
@@ -257,6 +274,7 @@ namespace Police
                     {
                         var s = new Stored { Hash = int.Parse(f[2]), Ammo = int.Parse(f[3]), Tint = int.Parse(f[4]) };
                         foreach (string c in f[5].Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)) s.Comps.Add(int.Parse(c));
+                        if (f.Length >= 7) float.TryParse(f[6], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out s.Litres);
                         List<Stored> l;
                         if (!stash.TryGetValue(f[1], out l)) stash[f[1]] = l = new List<Stored>();
                         l.Add(s);
@@ -274,7 +292,7 @@ namespace Police
                 foreach (string c in driven) lines.Add("C\t" + c);
                 foreach (var kv in stash)
                     foreach (Stored s in kv.Value)
-                        lines.Add(string.Join("\t", "S", kv.Key, s.Hash.ToString(), s.Ammo.ToString(), s.Tint.ToString(), string.Join(",", s.Comps)));
+                        lines.Add(string.Join("\t", "S", kv.Key, s.Hash.ToString(), s.Ammo.ToString(), s.Tint.ToString(), string.Join(",", s.Comps), s.Litres.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)));
                 File.WriteAllLines(dataPath, lines);
             }
             catch { }
@@ -321,6 +339,8 @@ namespace Police
             int now = Game.GameTime;
             Ped me = Game.Player.Character;
             if (me == null || !me.Exists()) return;
+            TrunkWardrobe.Pump();
+            CloseGuards(now);
 
             // remember cars you drive (yours from then on)
             if (now - lastSeenCarCheck > 1000)
@@ -362,6 +382,9 @@ namespace Police
                     || me.Position.DistanceTo(BootPos(open)) > 3.2f) { Close(); return; }
                 Game.DisableAllControlsThisFrame();
                 global::RealismSuite.UiMouse.Show();
+                // the wardrobe (your main ride only) draws over the panel while it's open
+                if (TrunkWardrobe.Open) { TrunkWardrobe.Tick(me, openKey, PX, PY, PW, PH); return; }
+                if (TrunkWardrobe.Allowed(openKey) && TrunkWardrobe.KeyOpens()) { TrunkWardrobe.Show(); Snd(); return; }
                 if (HandleMouse(me)) return;
                 if (Function.Call<bool>(GTA.Native.Hash.IS_DISABLED_CONTROL_JUST_PRESSED, 0, (int)Control.FrontendUp)) Move(-1);
                 if (Function.Call<bool>(GTA.Native.Hash.IS_DISABLED_CONTROL_JUST_PRESSED, 0, (int)Control.FrontendDown)) Move(1);
@@ -378,20 +401,19 @@ namespace Police
             if (now - reachCheckAt > 250)
             {
                 reachCheckAt = now;
-                reach = CanUse(me) && !PoliceScript.Busy && !PoliceComputer.PoliceComputerScript.ComputerOpen ? TrunkInReach(me) : null;
+                reach = CanUse(me) && !Quiet && !PoliceScript.Busy && !PoliceComputer.PoliceComputerScript.ComputerOpen && !global::Gangs.GangModule.MenuOpen ? TrunkInReach(me) : null;
+                Prompted = reach;
             }
             if (reach != null && reach.Exists())
             {
                 string key = PoliceScript.TrunkKey == Keys.E ? "~INPUT_CONTEXT~" : "~h~" + PoliceScript.TrunkKey + "~h~";
                 int held = keyHeld && keyDownAt >= 0 ? now - keyDownAt : 0;
-                Function.Call(Hash.BEGIN_TEXT_COMMAND_DISPLAY_HELP, "STRING");
-                Function.Call(Hash.ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME, "Hold " + key + " to open the trunk" + (held > 0 ? "  " + new string('|', Math.Min(10, held / 45)) : ""));
-                Function.Call(Hash.END_TEXT_COMMAND_DISPLAY_HELP, 0, false, false, -1);
+                global::RealismSuite.Help.Show("Hold " + key + " to open the trunk" + (held > 0 ? "  " + new string('|', Math.Min(10, held / 45)) : "") + (ExtraHint != null ? "~n~" + ExtraHint : ""));
             }
 
             if (!keyHeld || keyDownAt < 0 || now - keyDownAt < 450) return;
             keyDownAt = -1;
-            if (!CanUse(me) || PoliceScript.Busy || PoliceComputer.PoliceComputerScript.ComputerOpen) return;
+            if (!CanUse(me) || Quiet || PoliceScript.Busy || PoliceComputer.PoliceComputerScript.ComputerOpen || global::Gangs.GangModule.MenuOpen) return;
             Vehicle t = TrunkInReach(me);
             if (t == null)
             {
@@ -409,6 +431,7 @@ namespace Police
             personCache = null; rowsCache = null;
             SortTrunk();
             PanelOpen = true; PoliceScript.Busy = true;
+            TrunkWardrobe.SeedKeys();   // a W held while the panel opens doesn't open the wardrobe
             Function.Call(Hash.SET_VEHICLE_DOOR_OPEN, v, 5, false, false);
             me.Task.TurnTo(BootPos(v), 800);
             Function.Call(Hash.PLAY_SOUND_FRONTEND, -1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true);
@@ -417,7 +440,10 @@ namespace Police
         void Close()
         {
             if (!PanelOpen) return;
-            PanelOpen = false; PoliceScript.Busy = false;
+            PanelOpen = false; PoliceScript.Busy = false; TrunkWardrobe.Open = false;
+            // Esc closed it: the pause menu mustn't open on that same press; a click closed it: no shot from it
+            if (Game.IsKeyPressed(Keys.Escape)) escGuardUntil = Game.GameTime + 250;
+            mouseGuard = true;
             if (open != null && open.Exists()) Function.Call(Hash.SET_VEHICLE_DOOR_SHUT, open, 5, false);
             open = null;
             if (hints != null) { hints.Dispose(); hints = null; }
@@ -425,6 +451,28 @@ namespace Police
         }
 
         static void Snd() { Function.Call(Hash.PLAY_SOUND_FRONTEND, -1, "NAV_UP_DOWN", "HUD_FRONTEND_DEFAULT_SOUNDSET", true); }
+
+        // after the panel closes (same guards as the gang menu): pause controls off while Esc is still down, aim and
+        // fire off until both mouse buttons are up
+        int escGuardUntil; bool mouseGuard;
+        static readonly Control[] GuardedControls = { Control.Aim, Control.Attack, Control.Attack2, Control.VehicleAim, Control.VehicleAttack,
+            Control.VehicleAttack2, Control.VehiclePassengerAim, Control.VehiclePassengerAttack, Control.VehicleFlyAttack, Control.VehicleFlyAttack2 };
+        static bool Held(Control c) { return Function.Call<bool>(Hash.IS_DISABLED_CONTROL_PRESSED, 0, (int)c); }
+        void CloseGuards(int now)
+        {
+            if (PanelOpen) return;
+            if (now < escGuardUntil)
+            {
+                if (Game.IsKeyPressed(Keys.Escape)) escGuardUntil = now + 250;
+                Game.DisableControlThisFrame(Control.FrontendPause);
+                Game.DisableControlThisFrame(Control.FrontendPauseAlternate);
+            }
+            if (mouseGuard)
+            {
+                foreach (var c in GuardedControls) Game.DisableControlThisFrame(c);
+                if (!Held(Control.CursorAccept) && !Held(Control.CursorCancel) && !Held(Control.Attack) && !Held(Control.Aim)) mouseGuard = false;
+            }
+        }
 
         // ------------------------------------------------------------------ what's where, grouped by type
         static readonly string[] Groups = { "GROUP_PISTOL", "GROUP_SMG", "GROUP_RIFLE", "GROUP_MG", "GROUP_SHOTGUN", "GROUP_SNIPER", "GROUP_HEAVY", "GROUP_THROWN", "GROUP_MELEE" };
@@ -490,6 +538,7 @@ namespace Police
                 int type = Function.Call<int>(Hash.GET_PED_AMMO_TYPE_FROM_WEAPON, me, h);
                 bool shared = mine.Any(o => o != h && Function.Call<int>(Hash.GET_PED_AMMO_TYPE_FROM_WEAPON, me, o) == type);
                 s.Ammo = shared ? 0 : Function.Call<int>(Hash.GET_AMMO_IN_PED_WEAPON, me, h);
+                if (h == unchecked((int)WeaponHash.PetrolCan)) { s.Litres = global::RealFuel.RealFuelScript.CanLitres; global::RealFuel.RealFuelScript.CanLitres = 0f; }   // the petrol goes with the can
                 Function.Call(Hash.REMOVE_WEAPON_FROM_PED, me, h);
                 if (!shared) Function.Call(Hash.SET_PED_AMMO_BY_TYPE, me, type, 0);   // the pool goes with the gun, no doubling
                 InTrunk().Add(s);
@@ -502,12 +551,18 @@ namespace Police
                 if (index >= l.Count) return false;
                 Stored s = l[index];
                 bool had = Function.Call<bool>(Hash.HAS_PED_GOT_WEAPON, me, s.Hash, false);
+                if (s.Hash == unchecked((int)WeaponHash.PetrolCan))
+                {
+                    // you can carry one can: with one already on you, the petrol would get mixed up
+                    if (had) { Notification.PostTicker("You're already carrying a jerry can. Put it in the trunk first.", false, false); return false; }
+                    global::RealFuel.RealFuelScript.CanLitres = s.Litres;
+                }
                 if (!had) Function.Call(Hash.GIVE_WEAPON_TO_PED, me, s.Hash, 0, false, false);
                 if (s.Ammo > 0) Function.Call(Hash.ADD_AMMO_TO_PED, me, s.Hash, s.Ammo);
                 foreach (int c in s.Comps) Function.Call(Hash.GIVE_WEAPON_COMPONENT_TO_PED, me, s.Hash, c);
                 if (s.Tint > 0) Function.Call(Hash.SET_PED_WEAPON_TINT_INDEX, me, s.Hash, s.Tint);
                 l.RemoveAt(index);
-                Log("Took " + NameOf(s.Hash) + " (" + s.Ammo + ")");
+                Log("Took " + NameOf(s.Hash) + " (" + s.Ammo + (s.Hash == unchecked((int)WeaponHash.PetrolCan) ? ", " + s.Litres.ToString("0.0") + " L" : "") + ")");
             }
             personCache = null; rowsCache = null;
             return true;
@@ -570,9 +625,10 @@ namespace Police
             {
                 int ammo = Function.Call<int>(Hash.GET_AMMO_IN_PED_WEAPON, me, h);
                 int mods = CompsFor[h].Count(c => Function.Call<bool>(Hash.DOES_WEAPON_TAKE_WEAPON_COMPONENT, h, c) && Function.Call<bool>(Hash.HAS_PED_GOT_WEAPON_COMPONENT, me, h, c));
-                return new RowInfo { Name = NameOf(h), Group = GroupName(h), Detail = Detail(h, ammo, mods) };
+                string d = h == unchecked((int)WeaponHash.PetrolCan) ? global::RealFuel.RealFuelScript.CanLitres.ToString("0.0") + " L of petrol" : Detail(h, ammo, mods);
+                return new RowInfo { Name = NameOf(h), Group = GroupName(h), Detail = d };
             }).ToList();
-            var trunk = InTrunk().Select(st => new RowInfo { Name = NameOf(st.Hash), Group = GroupName(st.Hash), Detail = Detail(st.Hash, st.Ammo, st.Comps.Count) }).ToList();
+            var trunk = InTrunk().Select(st => new RowInfo { Name = NameOf(st.Hash), Group = GroupName(st.Hash), Detail = st.Hash == unchecked((int)WeaponHash.PetrolCan) ? st.Litres.ToString("0.0") + " L of petrol" : Detail(st.Hash, st.Ammo, st.Comps.Count) }).ToList();
             rowsCache = new[] { mine, trunk };
             return rowsCache;
         }
@@ -612,11 +668,13 @@ namespace Police
                 if (global::RealismSuite.UiMouse.Over(ColX(0), ButtonsY, ColW, 32)) { MoveAll(me, 0); return false; }
                 if (global::RealismSuite.UiMouse.Over(ColX(1), ButtonsY, ColW, 32)) { MoveAll(me, 1); return false; }
                 if (OverClose()) { Close(); return true; }
+                if (TrunkWardrobe.Allowed(openKey) && OverWardrobe()) { TrunkWardrobe.Show(); Snd(); return true; }
             }
             if (global::RealismSuite.UiMouse.RightClick) { Close(); return true; }
             return false;
         }
         static bool OverClose() { return global::RealismSuite.UiMouse.Over(PX + PW - 134, FootY + 12, 118, 34); }
+        static bool OverWardrobe() { return global::RealismSuite.UiMouse.Over(PX + PW - 268, FootY + 12, 126, 34); }
 
         // ------------------------------------------------------------------ drawing
         Scaleform hints; bool hintsBuilt;
@@ -677,6 +735,12 @@ namespace Police
             bool hot = mouse && OverClose();
             Box(PX + PW - 134, FootY + 12, 118, 34, hot ? Accent : SelC);
             Txt("CLOSE", PX + PW - 75, FootY + 17, 0.36f, Color.White, Alignment.Center);
+            if (TrunkWardrobe.Allowed(openKey))
+            {
+                bool hw = mouse && OverWardrobe();
+                Box(PX + PW - 268, FootY + 12, 126, 34, hw ? Accent : SelC);
+                Txt("WARDROBE (W)", PX + PW - 205, FootY + 17, 0.32f, Color.White, Alignment.Center);
+            }
             Txt(mouse ? "Click a gun to move it. Wheel scrolls. Right-click closes." : "", PX + 22, FootY + 20, 0.3f, Dim);
             if (!mouse)
             {

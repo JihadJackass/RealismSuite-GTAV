@@ -671,7 +671,7 @@ namespace SPAII
 					{
 						PrepareMansionDefinitions();
 					}
-					if (!onlineMapRequested && flag3 && StartupLoadingPolicy.DelayElapsed(startupClock.ElapsedMilliseconds, ConfigHelper.OnlineMapDelay))
+					if (!onlineMapRequested && flag3 && StartupLoadingPolicy.DelayElapsed(startupClock.ElapsedMilliseconds, ConfigHelper.OnlineMapDelay) && global::RealismSuite.FogKeeper.WorldSettled())
 					{
 						onlineMapRequested = true;
 						InitStep("early online map request");

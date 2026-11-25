@@ -531,7 +531,7 @@ namespace BusinessV.World
 			}
 			else if (!manager.IsOwned(item.Id))
 			{
-				HelpBox.Show("~INPUT_CONTEXT~ Purchase " + item.Name + " for " + Money(item.PurchasePrice) + "~n~Expected daily income: " + Money(item.BaseDailyIncome));
+				HelpBox.Show("~b~" + item.Name + "~s~~n~Price: " + Money(item.PurchasePrice) + " | Daily income: " + Money(item.BaseDailyIncome) + "~n~~INPUT_CONTEXT~ Buy this business");
 			}
 			else
 			{
@@ -541,7 +541,7 @@ namespace BusinessV.World
 				StaffSummary summary;
 				int value = ExpectedNetIncome(item, income, out summary);
 				string text = ((upgradeLevel >= 3) ? "Max Level" : ("Upgrade Level " + upgradeLevel));
-				HelpBox.Show("~b~" + item.Name + "~s~ - " + text + "~n~Expected daily income: ~g~" + Money(value) + "~s~~n~~INPUT_CONTEXT~ Manage business");
+				HelpBox.Show("~b~" + item.Name + "~s~~n~" + (upgradeLevel >= 3 ? "Level: Max" : "Level: " + upgradeLevel) + " | Daily income: " + Money(value) + "~n~~INPUT_CONTEXT~ Manage business");
 			}
 		}
 
